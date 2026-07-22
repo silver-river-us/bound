@@ -9,7 +9,7 @@ import (
 
 func Structurizr(a *model.Architecture) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "workspace %q {\n  model {\n", a.Name)
+	fmt.Fprintf(&b, "workspace %q %q {\n  model {\n", a.Name, a.Description)
 	names := make([]string, 0, len(a.Contexts))
 	for name := range a.Contexts {
 		names = append(names, name)
@@ -17,13 +17,20 @@ func Structurizr(a *model.Architecture) string {
 	sort.Strings(names)
 	for _, name := range names {
 		context := a.Contexts[name]
-		description := context.Implementation.Language + ": " + context.Implementation.Locator
+		description := context.Description
+		if description != "" {
+			description += "\n\n"
+		}
+		description += context.Implementation.Language + ": " + context.Implementation.Locator
 		fmt.Fprintf(&b, "    %s = softwareSystem %q {\n      description %q\n    }\n", name, name, description)
 	}
 	for _, relation := range a.Relations {
 		label := "depends on"
 		if relation.Via != "" {
 			label = "via " + relation.Via
+		}
+		if relation.Description != "" {
+			label = relation.Description
 		}
 		fmt.Fprintf(&b, "    %s -> %s %q\n", relation.From, relation.To, label)
 	}
