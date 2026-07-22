@@ -1,0 +1,13 @@
+# Bound architecture contracts are language-neutral.
+architecture Commerce {
+  context Orders {
+    implementation go "github.com/silver-river-us/bound/examples/commerce/internal/orders"
+  }
+
+  context Customers {
+    implementation rust "examples/commerce/crates/customers"
+    exposes CustomerPort
+  }
+
+  Orders -> Customers via CustomerPort
+}
