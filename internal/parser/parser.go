@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	architectureRE   = regexp.MustCompile(`^architecture\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{$`)
-	contextRE        = regexp.MustCompile(`^context\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{$`)
+	architectureRE   = regexp.MustCompile(`^architecture\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
+	contextRE        = regexp.MustCompile(`^context\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	implementationRE = regexp.MustCompile(`^implementation\s+([A-Za-z_][A-Za-z0-9_+-]*)\s+"([^"]+)"$`)
 	exposesRE        = regexp.MustCompile(`^exposes\s+([A-Za-z_][A-Za-z0-9_]*)$`)
 	relationRE       = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)\s*->\s*([A-Za-z_][A-Za-z0-9_]*)(?:\s+via\s+([A-Za-z_][A-Za-z0-9_]*))?$`)
@@ -36,7 +36,7 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			architecture = &model.Architecture{Name: match[1], Contexts: map[string]*model.Context{}}
 			continue
 		}
-		if current == nil && line == "}" {
+		if current == nil && line == "end" {
 			return architecture, nil
 		}
 		if current == nil {
@@ -52,9 +52,9 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 				architecture.Relations = append(architecture.Relations, model.Relation{From: match[1], To: match[2], Via: match[3]})
 				continue
 			}
-			return nil, syntaxError(lineNumber, "expected context, relationship, or closing brace")
+			return nil, syntaxError(lineNumber, "expected context, relationship, or end")
 		}
-		if line == "}" {
+		if line == "end" {
 			current = nil
 			continue
 		}
@@ -66,7 +66,7 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 		case exposesRE.MatchString(line):
 			current.Exposes[exposesRE.FindStringSubmatch(line)[1]] = true
 		default:
-			return nil, syntaxError(lineNumber, "expected implementation, exposes, or closing brace")
+			return nil, syntaxError(lineNumber, "expected implementation, exposes, or end")
 		}
 	}
 	if err := scanner.Err(); err != nil {

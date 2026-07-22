@@ -6,16 +6,16 @@ import (
 )
 
 func TestParseBoundDocument(t *testing.T) {
-	a, err := Parse(strings.NewReader(`architecture Commerce {
-  context Orders {
+	a, err := Parse(strings.NewReader(`architecture Commerce do
+  context Orders do
     implementation go "github.com/acme/commerce/internal/orders"
-  }
-  context Customers {
+  end
+  context Customers do
     implementation rust "crates/customers"
     exposes CustomerPort
-  }
+  end
   Orders -> Customers via CustomerPort
-}`))
+end`))
 	if err != nil {
 		t.Fatal(err)
 	}

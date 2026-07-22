@@ -5,18 +5,18 @@ Bound is a language-neutral architecture contract language.
 It declares contexts, implementation targets, exposed contracts, and allowed relationships. The first implementation validates the model and renders a Structurizr DSL workspace. An implementation target has a language and a locator, so the same architecture can be realized in Go, Rust, Python, TypeScript, or another backend.
 
 ```bo
-architecture Commerce {
-  context Orders {
+architecture Commerce do
+  context Orders do
     implementation go "github.com/acme/commerce/internal/orders"
-  }
+  end
 
-  context Customers {
+  context Customers do
     implementation rust "crates/customers"
     exposes CustomerPort
-  }
+  end
 
   Orders -> Customers via CustomerPort
-}
+end
 ```
 
 ## Try it

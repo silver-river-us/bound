@@ -1,24 +1,24 @@
 # Bound architecture contracts are language-neutral.
-architecture Commerce {
-  context Orders {
+architecture Commerce do
+  context Orders do
     implementation go "example.com/commerce/internal/orders"
     exposes OrderPort
-  }
+  end
 
-  context Customers {
+  context Customers do
     implementation go "example.com/commerce/internal/customers"
     exposes CustomerPort
-  }
+  end
 
-  context Web {
+  context Web do
     implementation go "example.com/commerce/internal/web"
-  }
+  end
 
-  context App {
+  context App do
     implementation go "example.com/commerce/cmd/commerce"
-  }
+  end
 
   Web -> Orders via OrderPort
   Web -> Customers via CustomerPort
   App -> Web
-}
+end
