@@ -6,7 +6,10 @@ import (
 )
 
 func TestParseBoundDocument(t *testing.T) {
-	a, err := Parse(strings.NewReader(`architecture Commerce do
+	a, err := Parse(strings.NewReader(`"""
+Architecture documentation.
+"""
+architecture Commerce do
   context Orders do
     implementation go "./internal/orders"
     interface OrderPort do
@@ -34,6 +37,9 @@ end`))
 	}
 	if _, ok := a.Contexts["Orders"].Interfaces["OrderPort"]; !ok {
 		t.Fatal("expected OrderPort interface")
+	}
+	if a.Description != "Architecture documentation." {
+		t.Fatalf("unexpected architecture description: %q", a.Description)
 	}
 	if a.Contexts["Customers"].Implementation.Language != "rust" {
 		t.Fatal("expected Rust implementation")

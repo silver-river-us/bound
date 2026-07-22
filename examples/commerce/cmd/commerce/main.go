@@ -1,9 +1,9 @@
 package main
 
 import (
-	"example.com/commerce/internal/customers"
-	"example.com/commerce/internal/orders"
-	"example.com/commerce/internal/web"
+	"commerce/internal/customers"
+	"commerce/internal/orders"
+	"commerce/internal/web"
 	"fmt"
 )
 

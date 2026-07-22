@@ -12,5 +12,5 @@ type CustomerPort interface {
 type Service struct{}
 
 func (Service) Find(id string) Customer {
-	return Customer{ID: id, Email: id + "@example.com"}
+	return Customer{ID: id, Email: id + "@commerce.test"}
 }

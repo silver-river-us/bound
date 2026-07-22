@@ -1,8 +1,20 @@
-# Bound architecture contracts are language-neutral.
+"""
+Commerce is a small modular monolith. The composition root wires adapters
+to application-facing ports; domain contexts do not reach into one another.
+"""
 architecture Commerce do
+  """
+  Orders owns the lifecycle and invariants of an order.
+  """
   context Orders do
     implementation go "./internal/orders"
+    """
+    The port is the public contract that other contexts may depend on.
+    """
     interface OrderPort do
+      """
+      Place creates an order after the caller has authenticated the customer.
+      """
       operation Place(orderID string, amount int) Order
     end
     exposes OrderPort
@@ -24,6 +36,9 @@ architecture Commerce do
     implementation go "./cmd/commerce"
   end
 
+  """
+  Web coordinates the user-facing use case and may consume only declared ports.
+  """
   Web -> Orders via OrderPort
   Web -> Customers via CustomerPort
   App -> Web

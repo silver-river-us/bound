@@ -3,8 +3,8 @@ package web
 import (
 	"fmt"
 
-	"example.com/commerce/internal/customers"
-	"example.com/commerce/internal/orders"
+	"commerce/internal/customers"
+	"commerce/internal/orders"
 )
 
 func Checkout(customerPort customers.CustomerPort, orderPort orders.OrderPort, customerID, orderID string, amount int) string {

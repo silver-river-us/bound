@@ -1,3 +1,3 @@
-module example.com/commerce
+module commerce
 
 go 1.22

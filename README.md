@@ -5,6 +5,9 @@ Bound is a language-neutral architecture contract language.
 It declares contexts, implementation targets, exposed contracts, and allowed relationships. The first implementation validates the model and renders a Structurizr DSL workspace. An implementation target has a language and a locator, so the same architecture can be realized in Go, Rust, Python, TypeScript, or another backend.
 
 ```bo
+"""
+The architecture description is attached to the architecture AST node.
+"""
 architecture Commerce do
   context Orders do
     implementation go "./internal/orders"
@@ -25,6 +28,10 @@ architecture Commerce do
   Orders -> Customers via CustomerPort
 end
 ```
+
+Triple-quoted blocks are documentation nodes. A block immediately before an
+architecture, context, interface, operation, or relationship is stored on that
+AST node and can be rendered by future documentation backends.
 
 ## Try it
 
