@@ -28,3 +28,12 @@ func (a *Architecture) Validate() error {
 	}
 	return nil
 }
+
+func (a *Architecture) Allows(from, to string) bool {
+	for _, relation := range a.Relations {
+		if relation.From == from && relation.To == to {
+			return true
+		}
+	}
+	return false
+}
