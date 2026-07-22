@@ -1,10 +1,16 @@
 package customers
 
 type Customer struct {
-	ID   string
+	ID    string
 	Email string
 }
 
-func Find(id string) Customer {
+type CustomerPort interface {
+	Find(id string) Customer
+}
+
+type Service struct{}
+
+func (Service) Find(id string) Customer {
 	return Customer{ID: id, Email: id + "@example.com"}
 }

@@ -1,24 +1,32 @@
 # Bound architecture contracts are language-neutral.
 architecture Commerce do
   context Orders do
-    implementation go "example.com/commerce/internal/orders"
+    implementation go "./internal/orders"
+    interface OrderPort do
+      operation Place(orderID string, amount int) Order
+    end
     exposes OrderPort
   end
 
   context Customers do
-    implementation go "example.com/commerce/internal/customers"
+    implementation go "./internal/customers"
+    interface CustomerPort do
+      operation Find(customerID string) Customer
+    end
     exposes CustomerPort
   end
 
   context Web do
-    implementation go "example.com/commerce/internal/web"
+    implementation go "./internal/web"
   end
 
   context App do
-    implementation go "example.com/commerce/cmd/commerce"
+    implementation go "./cmd/commerce"
   end
 
   Web -> Orders via OrderPort
   Web -> Customers via CustomerPort
   App -> Web
+  App -> Orders
+  App -> Customers
 end

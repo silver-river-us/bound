@@ -1,10 +1,16 @@
 package orders
 
 type Order struct {
-	ID    string
+	ID     string
 	Amount int
 }
 
-func Place(id string, amount int) Order {
+type OrderPort interface {
+	Place(id string, amount int) Order
+}
+
+type Service struct{}
+
+func (Service) Place(id string, amount int) Order {
 	return Order{ID: id, Amount: amount}
 }

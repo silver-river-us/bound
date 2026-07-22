@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"sort"
+	"path/filepath"
 	"strings"
 
 	"github.com/silver-river-us/bound/internal/model"
@@ -13,6 +13,7 @@ import (
 
 type goPackage struct {
 	ImportPath string
+	Dir        string
 	Imports    []string
 }
 
@@ -37,20 +38,19 @@ func Go(root string, architecture *model.Architecture) error {
 		packages = append(packages, pkg)
 	}
 
-	paths := make([]string, 0, len(architecture.Contexts))
-	for _, context := range architecture.Contexts {
-		if context.Implementation.Language == "go" {
-			paths = append(paths, context.Implementation.Locator)
+	owners := make(map[string]string)
+	for _, pkg := range packages {
+		if context := ownerByDir(pkg.Dir, root, architecture); context != "" {
+			owners[pkg.ImportPath] = context
 		}
 	}
-	sort.Strings(paths)
 	for _, pkg := range packages {
-		from := owner(pkg.ImportPath, architecture, paths)
+		from := owners[pkg.ImportPath]
 		if from == "" {
 			continue
 		}
 		for _, imported := range pkg.Imports {
-			to := owner(imported, architecture, paths)
+			to := owners[imported]
 			if to == "" || to == from || architecture.Allows(from, to) {
 				continue
 			}
@@ -60,14 +60,21 @@ func Go(root string, architecture *model.Architecture) error {
 	return nil
 }
 
-func owner(importPath string, architecture *model.Architecture, paths []string) string {
-	for _, path := range paths {
-		if importPath == path || strings.HasPrefix(importPath, path+"/") {
-			for name, context := range architecture.Contexts {
-				if context.Implementation.Locator == path {
-					return name
-				}
-			}
+func ownerByDir(dir, root string, architecture *model.Architecture) string {
+	absoluteDir, err := filepath.Abs(dir)
+	if err != nil {
+		return ""
+	}
+	for name, context := range architecture.Contexts {
+		if context.Implementation.Language != "go" {
+			continue
+		}
+		location, err := filepath.Abs(filepath.Join(root, context.Implementation.Locator))
+		if err != nil {
+			continue
+		}
+		if absoluteDir == location || strings.HasPrefix(absoluteDir, location+string(filepath.Separator)) {
+			return name
 		}
 	}
 	return ""

@@ -10,6 +10,21 @@ func (a *Architecture) Validate() error {
 		if context.Implementation.Language == "" || context.Implementation.Locator == "" {
 			return fmt.Errorf("context %s must declare an implementation", name)
 		}
+		for interfaceName, contract := range context.Interfaces {
+			if interfaceName != contract.Name || contract.Name == "" {
+				return fmt.Errorf("context %s has an invalid interface", name)
+			}
+			for operationName, operation := range contract.Operations {
+				if operationName != operation.Name || operation.Name == "" {
+					return fmt.Errorf("interface %s.%s has an invalid operation", name, interfaceName)
+				}
+			}
+		}
+		for exposed := range context.Exposes {
+			if _, ok := context.Interfaces[exposed]; !ok {
+				return fmt.Errorf("context %s exposes undefined interface %s", name, exposed)
+			}
+		}
 	}
 	for _, relation := range a.Relations {
 		if _, ok := a.Contexts[relation.From]; !ok {
@@ -22,8 +37,13 @@ func (a *Architecture) Validate() error {
 		if relation.From == relation.To {
 			return fmt.Errorf("context %s cannot depend on itself", relation.From)
 		}
-		if relation.Via != "" && !to.Exposes[relation.Via] {
-			return fmt.Errorf("%s does not expose %s", relation.To, relation.Via)
+		if relation.Via != "" {
+			if !to.Exposes[relation.Via] {
+				return fmt.Errorf("%s does not expose %s", relation.To, relation.Via)
+			}
+			if _, ok := to.Interfaces[relation.Via]; !ok {
+				return fmt.Errorf("%s exposes undefined interface %s", relation.To, relation.Via)
+			}
 		}
 	}
 	return nil

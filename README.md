@@ -7,11 +7,18 @@ It declares contexts, implementation targets, exposed contracts, and allowed rel
 ```bo
 architecture Commerce do
   context Orders do
-    implementation go "github.com/acme/commerce/internal/orders"
+    implementation go "./internal/orders"
+    interface OrderPort do
+      operation Place(orderID string, amount int) Order
+    end
+    exposes OrderPort
   end
 
   context Customers do
-    implementation rust "crates/customers"
+    implementation rust "./crates/customers"
+    interface CustomerPort do
+      operation Find(customerID string) Customer
+    end
     exposes CustomerPort
   end
 
@@ -30,4 +37,6 @@ go test ./...
 
 The architecture model is intentionally independent of implementation languages. Future backends will inspect the corresponding source tree and enforce that its imports or module dependencies obey the declared relationships.
 
-The Go backend currently uses the implementation locator as an import-path prefix. Standard-library and third-party imports are ignored; cross-context imports must have a declared relationship in the `.bo` model.
+The Go backend currently resolves implementation locators relative to the analyzed source root. Standard-library and third-party imports are ignored; cross-context imports must have a declared relationship in the `.bo` model.
+
+Interfaces are architecture contracts, not tied to one implementation language. A Go backend can realize them as ordinary Go interfaces, as shown in `examples/commerce/internal/orders/order.go` and `examples/commerce/internal/customers/customer.go`.

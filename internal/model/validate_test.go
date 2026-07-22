@@ -6,8 +6,8 @@ func TestValidateRequiresExposedContract(t *testing.T) {
 	a := &Architecture{
 		Name: "Commerce",
 		Contexts: map[string]*Context{
-			"Orders":    {Name: "Orders", Implementation: Implementation{Language: "go", Locator: "internal/orders"}},
-			"Customers": {Name: "Customers", Implementation: Implementation{Language: "go", Locator: "internal/customers"}, Exposes: map[string]bool{"CustomerPort": true}},
+			"Orders":    {Name: "Orders", Implementation: Implementation{Language: "go", Locator: "./internal/orders"}, Interfaces: map[string]*Interface{"OrderPort": {Name: "OrderPort"}}, Exposes: map[string]bool{"OrderPort": true}},
+			"Customers": {Name: "Customers", Implementation: Implementation{Language: "go", Locator: "./internal/customers"}, Interfaces: map[string]*Interface{"CustomerPort": {Name: "CustomerPort"}}, Exposes: map[string]bool{"CustomerPort": true}},
 		},
 		Relations: []Relation{{From: "Orders", To: "Customers", Via: "CustomerPort"}},
 	}
@@ -17,7 +17,7 @@ func TestValidateRequiresExposedContract(t *testing.T) {
 }
 
 func TestValidateRejectsUnknownContext(t *testing.T) {
-	a := &Architecture{Name: "Commerce", Contexts: map[string]*Context{"Orders": {Name: "Orders", Implementation: Implementation{Language: "go", Locator: "internal/orders"}}}, Relations: []Relation{{From: "Orders", To: "Payments"}}}
+	a := &Architecture{Name: "Commerce", Contexts: map[string]*Context{"Orders": {Name: "Orders", Implementation: Implementation{Language: "go", Locator: "./internal/orders"}}}, Relations: []Relation{{From: "Orders", To: "Payments"}}}
 	if err := a.Validate(); err == nil {
 		t.Fatal("expected unknown context error")
 	}
