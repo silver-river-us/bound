@@ -1,0 +1,27 @@
+"""
+The daily report is an executable architecture: it discovers organizations,
+collects activity through declared ports, and renders a human-facing report.
+The Go program is only one implementation of these contracts.
+"""
+architecture GitHubDaily do
+  context DailyReporting do
+    implementation go "./"
+
+    """
+    Reads the activity sources available to the authenticated GitHub user.
+    """
+    interface GitHubActivity do
+      operation organizations()
+      operation activity(organization, timeWindow)
+    end
+    exposes GitHubActivity
+
+    """
+    Produces the daily report and its summary.
+    """
+    interface DailyReport do
+      operation render(organizations, activities, warnings)
+    end
+    exposes DailyReport
+  end
+end

@@ -16,6 +16,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/silver-river-us/bound/internal/analyze"
+	"github.com/silver-river-us/bound/internal/parser"
 )
 
 const githubAPI = "https://api.github.com"
@@ -95,7 +98,12 @@ func main() {
 	sinceFlag := flag.Duration("since", 24*time.Hour, "report window, for example 24h or 48h")
 	outputFlag := flag.String("output", defaultOutput, "Markdown report path; use - for stdout")
 	baseURLFlag := flag.String("base-url", githubAPI, "GitHub API base URL")
+	architectureFlag := flag.String("architecture", filepath.Join("examples", "github-daily", "github-daily.bo"), "Bound architecture file")
+	sourceRootFlag := flag.String("source-root", "examples/github-daily", "source root checked by Bound")
 	flag.Parse()
+	if err := checkArchitecture(*architectureFlag, *sourceRootFlag); err != nil {
+		fatal(err)
+	}
 
 	token, err := authToken()
 	if err != nil {
@@ -437,3 +445,22 @@ func isHumanActor(actor string) bool {
 }
 
 func fatal(err error) { fmt.Fprintln(os.Stderr, "github-daily:", err); os.Exit(1) }
+
+func checkArchitecture(path, sourceRoot string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open architecture: %w", err)
+	}
+	defer file.Close()
+	architecture, err := parser.Parse(file)
+	if err != nil {
+		return fmt.Errorf("parse architecture: %w", err)
+	}
+	if err := architecture.Validate(); err != nil {
+		return fmt.Errorf("validate architecture: %w", err)
+	}
+	if err := analyze.Go(sourceRoot, architecture); err != nil {
+		return fmt.Errorf("check implementation: %w", err)
+	}
+	return nil
+}

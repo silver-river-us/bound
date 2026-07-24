@@ -50,7 +50,7 @@ Interfaces are architecture contracts, not tied to one implementation language. 
 
 ## GitHub daily activity example
 
-The `examples/github-daily` program discovers all organizations visible to the authenticated GitHub user, reads each organization's event stream for the last 24 hours, and writes a Markdown report.
+The `examples/github-daily` program is declared by [`github-daily.bo`](examples/github-daily/github-daily.bo). It discovers all organizations visible to the authenticated GitHub user, reads each organization's activity sources for the last 24 hours, and writes a Markdown report. The program validates that `.bo` architecture before it runs.
 
 ```sh
 go run ./examples/github-daily
