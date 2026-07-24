@@ -1,8 +1,8 @@
-package main
+package dailyreport
 
 import "strings"
 
-func isHumanActor(actor string) bool {
+func IsHumanActor(actor string) bool {
 	name := strings.ToLower(strings.TrimSpace(actor))
 	if name == "" || name == "github" || strings.HasSuffix(name, "[bot]") {
 		return false

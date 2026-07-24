@@ -1,11 +1,11 @@
-package main
+package githubactivity
 
 import "fmt"
 
-func (c *client) organizations() ([]organization, error) {
-	var organizations []organization
+func (c *Client) Organizations() ([]Organization, error) {
+	var organizations []Organization
 	for page := 1; ; page++ {
-		var batch []organization
+		var batch []Organization
 		if err := c.get(fmt.Sprintf("/user/orgs?per_page=100&page=%d", page), &batch); err != nil {
 			return nil, err
 		}

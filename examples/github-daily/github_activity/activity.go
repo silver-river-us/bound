@@ -1,8 +1,8 @@
-package main
+package githubactivity
 
 import "time"
 
-type activity struct {
+type Activity struct {
 	Organization string
 	Source       string
 	Type         string

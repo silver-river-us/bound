@@ -79,7 +79,8 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 			return fmt.Errorf("file %s is mapped more than once", mapping.Path)
 		}
 		context := contextForNode(architecture, mapping.Node)
-		if context == nil || context.Implementation.Language != "go" {
+		implementation, hasImplementation := architecture.ImplementationForNode(mapping.Node)
+		if context == nil || !hasImplementation || implementation.Language != "go" {
 			return fmt.Errorf("file %s maps to non-Go context %s", mapping.Path, mapping.Node)
 		}
 		absolute := filepath.Join(root, filepath.FromSlash(mapping.Path))
@@ -90,7 +91,7 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 		if info.IsDir() || filepath.Ext(absolute) != ".go" {
 			return fmt.Errorf("mapped file %s must be a Go source file", mapping.Path)
 		}
-		location := filepath.Join(root, context.Implementation.Locator)
+		location := filepath.Join(root, implementation.Locator)
 		if !within(absolute, location) {
 			return fmt.Errorf("mapped file %s is outside context %s implementation", mapping.Path, mapping.Node)
 		}

@@ -1,12 +1,12 @@
-package main
+package githubactivity
 
 import (
 	"fmt"
 	"time"
 )
 
-func (c *client) activities(org string, since, until time.Time) ([]activity, []string) {
-	activities := make([]activity, 0)
+func (c *Client) Activities(org string, since, until time.Time) ([]Activity, []string) {
+	activities := make([]Activity, 0)
 	warnings := make([]string, 0)
 	events, err := c.eventActivities(org, since)
 	if err != nil {

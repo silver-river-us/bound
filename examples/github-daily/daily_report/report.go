@@ -1,24 +1,26 @@
-package main
+package dailyreport
 
 import (
 	"fmt"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/silver-river-us/bound/examples/github-daily/github_activity"
 )
 
-func renderReport(since, until time.Time, orgs []organization, activities []activity, warnings []string) string {
+func RenderReport(since, until time.Time, orgs []githubactivity.Organization, activities []githubactivity.Activity, warnings []string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# GitHub activity report\n\nPeriod: `%s` to `%s`\n\n", since.Format(time.RFC3339), until.Format(time.RFC3339))
 	fmt.Fprintf(&b, "Organizations discovered: **%d**  \nActivities collected: **%d**\n\n", len(orgs), len(activities))
-	byOrg := map[string][]activity{}
+	byOrg := map[string][]githubactivity.Activity{}
 	bySource := map[string]int{}
 	byActor := map[string]int{}
 	systemActivities := 0
 	for _, item := range activities {
 		byOrg[item.Organization] = append(byOrg[item.Organization], item)
 		bySource[item.Source]++
-		if isHumanActor(item.Actor) {
+		if IsHumanActor(item.Actor) {
 			byActor[item.Actor]++
 		} else {
 			systemActivities++

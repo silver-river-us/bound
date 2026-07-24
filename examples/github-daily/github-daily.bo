@@ -24,6 +24,7 @@ architecture GitHubDaily do
     Reads the activity sources available to the authenticated GitHub user.
     """
     interface GithubActivity do
+      implementation go "./github_activity"
       operation organizations() returns Organization[]
       operation activity(organization, timeWindow) returns Activity[]
     end
@@ -33,6 +34,7 @@ architecture GitHubDaily do
     Produces the daily report and its summary.
     """
     interface DailyReport do
+      implementation go "./daily_report"
       operation render(organizations, activities, warnings)
     end
     exposes DailyReport

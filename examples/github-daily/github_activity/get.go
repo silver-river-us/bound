@@ -1,4 +1,4 @@
-package main
+package githubactivity
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func (c *client) get(path string, target any) error {
+func (c *Client) get(path string, target any) error {
 	request, err := http.NewRequest(http.MethodGet, c.baseURL+path, nil)
 	if err != nil {
 		return err

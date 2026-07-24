@@ -101,6 +101,18 @@ func (a *Architecture) HasNode(name string) bool {
 	return false
 }
 
+func (a *Architecture) ImplementationForNode(name string) (Implementation, bool) {
+	if context, ok := a.Contexts[name]; ok {
+		return context.Implementation, true
+	}
+	for _, context := range a.Contexts {
+		if contract, ok := context.Interfaces[name]; ok {
+			return contract.Implementation, contract.Implementation.Language != "" && contract.Implementation.Locator != ""
+		}
+	}
+	return Implementation{}, false
+}
+
 func (a *Architecture) Allows(from, to string) bool {
 	for _, relation := range a.Relations {
 		if relation.From == from && relation.To == to {

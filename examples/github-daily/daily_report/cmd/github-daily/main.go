@@ -8,15 +8,17 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
+
+	"github.com/silver-river-us/bound/examples/github-daily/daily_report"
+	"github.com/silver-river-us/bound/examples/github-daily/github_activity"
 )
 
 func main() {
 	defaultOutput := filepath.Join("reports", "github-activity-"+time.Now().UTC().Format("2006-01-02")+".md")
 	sinceFlag := flag.Duration("since", 24*time.Hour, "report window, for example 24h or 48h")
 	outputFlag := flag.String("output", defaultOutput, "Markdown report path; use - for stdout")
-	baseURLFlag := flag.String("base-url", githubAPI, "GitHub API base URL")
+	baseURLFlag := flag.String("base-url", githubactivity.GithubAPI, "GitHub API base URL")
 	architectureFlag := flag.String("architecture", filepath.Join("examples", "github-daily", "github-daily.bo"), "Bound architecture file")
 	sourceRootFlag := flag.String("source-root", "examples/github-daily", "source root checked by Bound")
 	flag.Parse()
@@ -24,27 +26,27 @@ func main() {
 		fatal(err)
 	}
 
-	token, err := authToken()
+	token, err := githubactivity.AuthToken()
 	if err != nil {
 		fatal(err)
 	}
-	c := &client{baseURL: strings.TrimRight(*baseURLFlag, "/"), token: token, http: httpClient}
+	c := githubactivity.NewClient(*baseURLFlag, token)
 	since := time.Now().UTC().Add(-*sinceFlag)
-	orgs, err := c.organizations()
+	orgs, err := c.Organizations()
 	if err != nil {
 		fatal(err)
 	}
 
-	activities := make([]activity, 0)
+	activities := make([]githubactivity.Activity, 0)
 	warnings := make([]string, 0)
 	for _, org := range orgs {
-		items, orgWarnings := c.activities(org.Login, since, time.Now().UTC())
+		items, orgWarnings := c.Activities(org.Login, since, time.Now().UTC())
 		activities = append(activities, items...)
 		warnings = append(warnings, orgWarnings...)
 	}
 	sort.Slice(activities, func(i, j int) bool { return activities[i].CreatedAt.Before(activities[j].CreatedAt) })
 
-	report := renderReport(since, time.Now().UTC(), orgs, activities, warnings)
+	report := dailyreport.RenderReport(since, time.Now().UTC(), orgs, activities, warnings)
 	if *outputFlag == "-" {
 		fmt.Print(report)
 		return

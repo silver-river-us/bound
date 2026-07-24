@@ -1,4 +1,4 @@
-package main
+package githubactivity
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func authToken() (string, error) {
+func AuthToken() (string, error) {
 	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
 		return token, nil
 	}

@@ -1,4 +1,4 @@
-package main
+package githubactivity
 
 import (
 	"fmt"
@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-func (c *client) eventActivities(org string, since time.Time) ([]activity, error) {
-	activities := make([]activity, 0)
+func (c *Client) eventActivities(org string, since time.Time) ([]Activity, error) {
+	activities := make([]Activity, 0)
 	for page := 1; page <= 10; page++ {
 		var events []event
 		path := fmt.Sprintf("/orgs/%s/events?per_page=100&page=%d", url.PathEscape(org), page)
@@ -22,7 +22,7 @@ func (c *client) eventActivities(org string, since time.Time) ([]activity, error
 			if item.CreatedAt.Before(since) {
 				return activities, nil
 			}
-			activities = append(activities, activity{
+			activities = append(activities, Activity{
 				Organization: org,
 				Source:       "events",
 				Type:         strings.TrimSuffix(item.Type, "Event"),

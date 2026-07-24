@@ -104,8 +104,8 @@ Interfaces are architecture contracts, not tied to one implementation language. 
 The `examples/github-daily` program is declared by [`github-daily.bo`](examples/github-daily/github-daily.bo). It discovers all organizations visible to the authenticated GitHub user, reads each organization's activity sources for the last 24 hours, and writes a Markdown report. The program validates that `.bo` architecture before it runs.
 
 ```sh
-go run ./examples/github-daily
-go run ./examples/github-daily -since 48h -output -
+go run ./examples/github-daily/daily_report/cmd/github-daily
+go run ./examples/github-daily/daily_report/cmd/github-daily -since 48h -output -
 ```
 
 Authentication uses `GITHUB_TOKEN` when set, otherwise the token from `gh auth token`. Reports are written to `reports/github-activity-YYYY-MM-DD.md` by default.

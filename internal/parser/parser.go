@@ -110,6 +110,12 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 				currentInterface = nil
 				continue
 			}
+			if implementationRE.MatchString(line) {
+				match := implementationRE.FindStringSubmatch(line)
+				currentInterface.Implementation.Language = match[1]
+				currentInterface.Implementation.Locator = match[2]
+				continue
+			}
 			match := operationRE.FindStringSubmatch(line)
 			if match == nil {
 				return nil, syntaxError(lineNumber, "expected operation or end")

@@ -38,9 +38,10 @@ type Relation struct {
 }
 
 type Interface struct {
-	Name        string
-	Description string
-	Operations  map[string]Operation
+	Name           string
+	Description    string
+	Implementation Implementation
+	Operations     map[string]Operation
 }
 
 type Operation struct {

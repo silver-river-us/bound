@@ -1,4 +1,4 @@
-package main
+package githubactivity
 
 import (
 	"fmt"
@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-func (c *client) commitActivities(org string, since, until time.Time) ([]activity, error) {
-	activities := make([]activity, 0)
+func (c *Client) commitActivities(org string, since, until time.Time) ([]Activity, error) {
+	activities := make([]Activity, 0)
 	for page := 1; page <= 10; page++ {
 		query := url.Values{}
 		query.Set("q", fmt.Sprintf("org:%s committer-date:%s..%s", org, since.Format(time.RFC3339), until.Format(time.RFC3339)))
@@ -32,7 +32,7 @@ func (c *client) commitActivities(org string, since, until time.Time) ([]activit
 			if actor == "" {
 				actor = item.Commit.Author.Name
 			}
-			activities = append(activities, activity{
+			activities = append(activities, Activity{
 				Organization: org,
 				Source:       "commits",
 				Type:         "Commit",
