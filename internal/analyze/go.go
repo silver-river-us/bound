@@ -119,8 +119,8 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 				return fmt.Errorf("mapped file %s is in an undeclared submodule folder", mapping.Path)
 			}
 			if mapping.EntryPoint {
-				expected := filepath.Join(location, "cmd", kebabCase(mapping.EntryPointName), "main.go")
-				if kebabCase(module.Name) == kebabCase(mapping.EntryPointName) {
+				expected := filepath.Join(location, "cmd", model.ConventionalEntrypoint(mapping.EntryPointName), "main.go")
+				if model.ConventionalEntrypoint(module.Name) == model.ConventionalEntrypoint(mapping.EntryPointName) {
 					expected = filepath.Join(location, "main.go")
 				}
 				if absolute != expected {
@@ -157,10 +157,10 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 
 func withinModuleEntrypoint(directory, location string, module *model.Module) bool {
 	for name := range module.Entrypoints {
-		if directory == filepath.Join(location, "cmd", kebabCase(name)) {
+		if directory == filepath.Join(location, "cmd", model.ConventionalEntrypoint(name)) {
 			return true
 		}
-		if kebabCase(module.Name) == kebabCase(name) && directory == location {
+		if model.ConventionalEntrypoint(module.Name) == model.ConventionalEntrypoint(name) && directory == location {
 			return true
 		}
 	}
@@ -186,30 +186,12 @@ func moduleLocation(root string, architecture *model.Architecture, module *model
 	var parts []string
 	var names []string
 	for current := module; current != nil; current = architecture.Modules[current.Parent] {
-		names = append(names, snakeCase(current.Name))
+		names = append(names, model.ConventionalFolder(current.Name))
 	}
 	for index := len(names) - 1; index >= 0; index-- {
 		parts = append(parts, names[index])
 	}
 	return filepath.Join(append([]string{root}, parts...)...)
-}
-
-func snakeCase(value string) string {
-	var result []rune
-	for index, character := range value {
-		if index > 0 && character >= 'A' && character <= 'Z' {
-			result = append(result, '_')
-		}
-		if character >= 'A' && character <= 'Z' {
-			character += 'a' - 'A'
-		}
-		result = append(result, character)
-	}
-	return string(result)
-}
-
-func kebabCase(value string) string {
-	return strings.ReplaceAll(snakeCase(value), "_", "-")
 }
 
 func within(file, directory string) bool {

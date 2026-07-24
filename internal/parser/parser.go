@@ -281,7 +281,7 @@ func addModule(architecture *model.Architecture, context *model.Context, parent 
 		return nil, fmt.Errorf("duplicate module")
 	}
 	for sibling := range children {
-		if strings.EqualFold(sibling, name) {
+		if model.ConventionalFolder(sibling) == model.ConventionalFolder(name) {
 			return nil, fmt.Errorf("module folder name collides with %s", sibling)
 		}
 	}

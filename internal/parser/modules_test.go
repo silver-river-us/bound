@@ -76,3 +76,20 @@ end
 		t.Fatalf("error = %v, want qualified module declaration rejection", err)
 	}
 }
+
+func TestSiblingModulesRejectConventionalFolderCollision(t *testing.T) {
+	_, err := Parse(strings.NewReader(`
+architecture Example do
+  implementation go "./"
+  context Reporting do
+    module FooBar do
+    end
+    module Foo_Bar do
+    end
+  end
+end
+`))
+	if err == nil || !strings.Contains(err.Error(), "folder name collides") {
+		t.Fatalf("error = %v, want folder collision", err)
+	}
+}
