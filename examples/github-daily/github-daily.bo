@@ -23,11 +23,11 @@ architecture GitHubDaily do
     """
     Reads the activity sources available to the authenticated GitHub user.
     """
-    interface GitHubActivity do
+    interface GithubActivity do
       operation organizations() returns Organization[]
       operation activity(organization, timeWindow) returns Activity[]
     end
-    exposes GitHubActivity
+    exposes GithubActivity
 
     """
     Produces the daily report and its summary.

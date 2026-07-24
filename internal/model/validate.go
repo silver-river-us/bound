@@ -22,8 +22,8 @@ func (a *Architecture) Validate() error {
 		if _, exists := files[file.Path]; exists {
 			return fmt.Errorf("file %s is mapped more than once", file.Path)
 		}
-		if _, ok := a.Contexts[file.Node]; !ok {
-			return fmt.Errorf("file %s references unknown context %s", file.Path, file.Node)
+		if !a.HasNode(file.Node) {
+			return fmt.Errorf("file %s references unknown architecture node %s", file.Path, file.Node)
 		}
 		files[file.Path] = file
 	}
@@ -87,6 +87,18 @@ func (a *Architecture) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (a *Architecture) HasNode(name string) bool {
+	if _, ok := a.Contexts[name]; ok {
+		return true
+	}
+	for _, context := range a.Contexts {
+		if _, ok := context.Interfaces[name]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *Architecture) Allows(from, to string) bool {

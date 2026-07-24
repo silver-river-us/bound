@@ -3,9 +3,6 @@ package analyze
 import (
 	"encoding/json"
 	"fmt"
-	"go/ast"
-	goparser "go/parser"
-	"go/token"
 	"io"
 	"os"
 	"os/exec"
@@ -81,7 +78,7 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 		if _, exists := mappings[mapping.Path]; exists {
 			return fmt.Errorf("file %s is mapped more than once", mapping.Path)
 		}
-		context := architecture.Contexts[mapping.Node]
+		context := contextForNode(architecture, mapping.Node)
 		if context == nil || context.Implementation.Language != "go" {
 			return fmt.Errorf("file %s maps to non-Go context %s", mapping.Path, mapping.Node)
 		}
@@ -126,27 +123,18 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 		if _, ok := mappings[relative]; !ok {
 			return fmt.Errorf("Go source file %s has no architecture mapping", relative)
 		}
-		if err := validateOneDeclaration(path); err != nil {
-			return err
-		}
 		return nil
 	})
 }
 
-func validateOneDeclaration(path string) error {
-	file, err := goparser.ParseFile(token.NewFileSet(), path, nil, 0)
-	if err != nil {
-		return fmt.Errorf("parse Go source file %s: %w", path, err)
+func contextForNode(architecture *model.Architecture, node string) *model.Context {
+	if context := architecture.Contexts[node]; context != nil {
+		return context
 	}
-	declarations := 0
-	for _, declaration := range file.Decls {
-		if gen, ok := declaration.(*ast.GenDecl); ok && gen.Tok == token.IMPORT {
-			continue
+	for _, context := range architecture.Contexts {
+		if _, ok := context.Interfaces[node]; ok {
+			return context
 		}
-		declarations++
-	}
-	if declarations != 1 {
-		return fmt.Errorf("Go source file %s must contain exactly one implementation declaration, found %d", path, declarations)
 	}
 	return nil
 }

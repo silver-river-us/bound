@@ -69,11 +69,11 @@ end
 
 Imports are optional, and paths are resolved relative to the importing `.bo`.
 The Go checker requires every Go source file under a declared implementation to
-appear exactly once in the imported map. This keeps generated output owned by
-one architecture node and prevents entry points from being inferred. It also
-requires each mapped Go file to contain exactly one top-level implementation
-declaration, and rejects files outside the context folder declared by
-`implementation`.
+appear exactly once in the imported map. A mapping can target a context or one
+of its exposed interfaces, which lets architecturally significant modules such
+as `GithubActivity` and `DailyReport` own source files. Functions and ordinary
+language declarations may coexist in a mapped file; the architectural unit is
+the mapping target, not an individual Go function.
 
 Operations have explicit method names and may reference those objects in their
 language-neutral signatures:
