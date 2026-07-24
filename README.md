@@ -37,10 +37,13 @@ Domain objects and their attributes are declared explicitly:
 
 ```bo
 object Activity do
-  attribute repository: string
-  attribute occurred_at: timestamp
+  attribute :repository :string
+  attribute :occurred_at :timestamp
 end
 ```
+
+Attributes use Ruby-like symbols for both the field name and its language-neutral
+type: `attribute :name :type`.
 
 Operations have explicit method names and may reference those objects in their
 language-neutral signatures:

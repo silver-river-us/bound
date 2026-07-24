@@ -12,7 +12,7 @@ import (
 var (
 	architectureRE   = regexp.MustCompile(`^architecture\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	objectRE         = regexp.MustCompile(`^object\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
-	attributeRE      = regexp.MustCompile(`^attribute\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^\s]+)$`)
+	attributeRE      = regexp.MustCompile(`^attribute\s+:([A-Za-z_][A-Za-z0-9_]*)\s+:([A-Za-z_][A-Za-z0-9_\[\]]*)$`)
 	contextRE        = regexp.MustCompile(`^context\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	implementationRE = regexp.MustCompile(`^implementation\s+([A-Za-z_][A-Za-z0-9_+-]*)\s+"([^"]+)"$`)
 	exposesRE        = regexp.MustCompile(`^exposes\s+([A-Za-z_][A-Za-z0-9_]*)$`)

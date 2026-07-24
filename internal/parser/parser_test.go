@@ -11,8 +11,8 @@ Architecture documentation.
 """
 architecture Commerce do
   object Customer do
-    attribute id: string
-    attribute email: string
+    attribute :id :string
+    attribute :email :string
   end
   context Orders do
     implementation go "./internal/orders"
@@ -50,5 +50,16 @@ end`))
 	}
 	if a.Contexts["Customers"].Implementation.Language != "rust" {
 		t.Fatal("expected Rust implementation")
+	}
+}
+
+func TestParseRejectsNonSymbolAttributeSyntax(t *testing.T) {
+	_, err := Parse(strings.NewReader(`architecture Example do
+  object Customer do
+    attribute email: string
+  end
+end`))
+	if err == nil {
+		t.Fatal("expected legacy attribute syntax to be rejected")
 	}
 }

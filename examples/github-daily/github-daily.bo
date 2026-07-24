@@ -5,14 +5,14 @@ The Go program is only one implementation of these contracts.
 """
 architecture GitHubDaily do
   object Organization do
-    attribute login: string
+    attribute :login :string
   end
 
   object Activity do
-    attribute source: string
-    attribute actor: string
-    attribute repository: string
-    attribute occurred_at: timestamp
+    attribute :source :string
+    attribute :actor :string
+    attribute :repository :string
+    attribute :occurred_at :timestamp
   end
 
   context DailyReporting do
