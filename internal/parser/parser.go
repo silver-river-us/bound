@@ -193,6 +193,8 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			continue
 		}
 		switch {
+		case importRE.MatchString(line):
+			current.Imports = append(current.Imports, importRE.FindStringSubmatch(line)[1])
 		case exposesRE.MatchString(line):
 			current.Exposes[exposesRE.FindStringSubmatch(line)[1]] = true
 		case interfaceRE.MatchString(line):
@@ -211,7 +213,7 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			}
 			moduleStack = append(moduleStack, module)
 		default:
-			return nil, syntaxError(lineNumber, "expected interface, module, exposes, or end")
+			return nil, syntaxError(lineNumber, "expected import, interface, module, exposes, or end")
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -397,7 +399,56 @@ func parseFile(path string, visiting map[string]bool) (*model.Architecture, erro
 			return nil, fmt.Errorf("import %s: %w", importPath, err)
 		}
 	}
+	fragmentVisiting := map[string]bool{}
+	for _, context := range architecture.Contexts {
+		for _, importPath := range context.Imports {
+			importedPath := filepath.Join(filepath.Dir(absPath), importPath)
+			if err := loadContextFragment(importedPath, context, fragmentVisiting); err != nil {
+				return nil, fmt.Errorf("context %s import %s: %w", context.Name, importPath, err)
+			}
+		}
+		context.Imports = nil
+	}
 	return architecture, nil
+}
+
+func loadContextFragment(path string, target *model.Context, visiting map[string]bool) error {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	if visiting[absolute] {
+		return fmt.Errorf("cyclic Bound fragment import: %s", path)
+	}
+	visiting[absolute] = true
+	defer delete(visiting, absolute)
+
+	content, err := os.ReadFile(absolute)
+	if err != nil {
+		return err
+	}
+	wrapped := "architecture Fragment do\nimplementation fragment \"./\"\ncontext FragmentContext do\n" +
+		string(content) + "\nend\nend\n"
+	fragment, err := Parse(strings.NewReader(wrapped))
+	if err != nil {
+		return fmt.Errorf("parse %s: %w", path, err)
+	}
+	source := fragment.Contexts["FragmentContext"]
+	if len(source.Modules) > 0 || len(source.Exposes) > 0 {
+		return fmt.Errorf("fragment %s may only contain imports and interfaces", path)
+	}
+	for name, contract := range source.Interfaces {
+		if _, exists := target.Interfaces[name]; exists {
+			return fmt.Errorf("duplicate interface %s", name)
+		}
+		target.Interfaces[name] = contract
+	}
+	for _, importPath := range source.Imports {
+		if err := loadContextFragment(filepath.Join(filepath.Dir(absolute), importPath), target, visiting); err != nil {
+			return fmt.Errorf("import %s: %w", importPath, err)
+		}
+	}
+	return nil
 }
 
 func merge(target, imported *model.Architecture) error {

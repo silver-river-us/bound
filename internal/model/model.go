@@ -34,6 +34,7 @@ type FileMapping struct {
 type Context struct {
 	Name        string
 	Description string
+	Imports     []string
 	Exposes     map[string]bool
 	Interfaces  map[string]*Interface
 	Modules     map[string]*Module

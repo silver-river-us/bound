@@ -75,6 +75,37 @@ end
 Types are part of the interface that exposes them. Other interfaces reference
 them with qualified names such as `ActivitySource.Organization`.
 
+Large contracts can live in standalone `.bo` fragments and be imported by the
+context that owns them:
+
+```bo
+# reporting.bo
+context Reporting do
+  import "contracts/github_activity.bo"
+  import "contracts/daily_report.bo"
+
+  exposes GithubActivity
+  exposes DailyReport
+end
+```
+
+```bo
+# contracts/github_activity.bo
+interface GithubActivity do
+  value TimeWindow do
+    state :since :timestamp
+    state :until :timestamp
+  end
+
+  behavior activities(organization Organization, window TimeWindow) returns ActivityFeed
+end
+```
+
+Interface fragments may contain documentation, interfaces, their entities and
+values, behaviors, and other relative fragment imports. Contexts, modules,
+relationships, implementation metadata, and source maps remain in the main
+architecture so its structural and data-flow view stays visible.
+
 The architecture declaration stays in a `.bo` file. Source ownership is kept in
 a separate language-qualified `.go.bom` map imported by the architecture; this keeps implementation
 layout separate from domain design:

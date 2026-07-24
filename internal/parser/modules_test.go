@@ -72,7 +72,7 @@ architecture Example do
   end
 end
 `))
-	if err == nil || !strings.Contains(err.Error(), "expected interface, module, exposes, or end") {
+	if err == nil || !strings.Contains(err.Error(), "expected import, interface, module, exposes, or end") {
 		t.Fatalf("error = %v, want qualified module declaration rejection", err)
 	}
 }
