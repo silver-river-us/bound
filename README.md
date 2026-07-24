@@ -129,7 +129,7 @@ architecture GitHubDaily do
     exposes GithubActivity
 
     module DailyReporting do
-      module GithubActivity do
+      module Activity do
         implements GithubActivity
 
         module Github do
@@ -147,7 +147,7 @@ end
 ```
 
 Module names conventionally produce snake-case folders, so the example declares
-`daily_reporting/github_activity/github` without embedding paths in the DSL.
+`daily_reporting/activity/github` without embedding paths in the DSL.
 `implements` binds private code to a public contract, while `uses` permits a
 dependency on an interface or another private module. Nested source folders
 must have matching nested module declarations. The Go backend conventionally
@@ -194,7 +194,7 @@ The implementation namespace follows the architecture:
 ```text
 github-daily/
 └── daily_reporting/
-    ├── github_activity/
+    ├── activity/
     │   ├── *.go      # organizations, events, activities, search results
     │   └── github/   # GitHub API client and activity sources
     └── daily_report/

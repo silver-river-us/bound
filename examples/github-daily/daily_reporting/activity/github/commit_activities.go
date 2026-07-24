@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/silver-river-us/bound/examples/github-daily/daily_reporting/github_activity"
+	"github.com/silver-river-us/bound/examples/github-daily/daily_reporting/activity"
 )
 
 func (c *Client) commitActivities(org string, since, until time.Time) ([]githubactivity.Activity, error) {
