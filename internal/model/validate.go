@@ -14,8 +14,22 @@ func (a *Architecture) Validate() error {
 		return fmt.Errorf("architecture must declare an implementation")
 	}
 	for name, module := range a.Modules {
-		if module.Name != name {
+		if module.Qualified != name || module.Name == "" || module.Context == "" {
 			return fmt.Errorf("architecture has an invalid module")
+		}
+		context := a.Contexts[module.Context]
+		if context == nil {
+			return fmt.Errorf("module %s references unknown context %s", name, module.Context)
+		}
+		if module.Implements != "" {
+			if _, ok := context.Interfaces[module.Implements]; !ok {
+				return fmt.Errorf("module %s implements unknown interface %s", name, module.Implements)
+			}
+		}
+		for dependency := range module.Uses {
+			if !a.validModuleDependency(module, dependency) {
+				return fmt.Errorf("module %s uses unknown interface or module %s", name, dependency)
+			}
 		}
 	}
 	files := make(map[string]FileMapping, len(a.Files))
@@ -42,6 +56,10 @@ func (a *Architecture) Validate() error {
 		mapping := files[file.Path]
 		if mapping.Node == "" {
 			return fmt.Errorf("entry point %s must be mapped to a context", file.Path)
+		}
+		module := a.Modules[mapping.Node]
+		if module == nil || !module.Entrypoints[file.EntryPointName] {
+			return fmt.Errorf("entry point %s maps undeclared name %s on module %s", file.Path, file.EntryPointName, file.Node)
 		}
 	}
 	for name, object := range a.Objects {
@@ -99,6 +117,35 @@ func (a *Architecture) Validate() error {
 	return nil
 }
 
+func (a *Architecture) validModuleDependency(module *Module, dependency string) bool {
+	if target := a.Modules[dependency]; target != nil {
+		return target.Context == module.Context
+	}
+	if _, ok := a.Modules[module.Qualified+"."+dependency]; ok {
+		return true
+	}
+	if module.Parent != "" {
+		if _, ok := a.Modules[module.Parent+"."+dependency]; ok {
+			return true
+		}
+	}
+	if _, ok := a.Contexts[module.Context].Interfaces[dependency]; ok {
+		return true
+	}
+	parts := strings.Split(dependency, ".")
+	if len(parts) == 2 {
+		if context := a.Contexts[parts[0]]; context != nil && context.Exposes[parts[1]] {
+			return true
+		}
+	}
+	for _, context := range a.Contexts {
+		if context.Exposes[dependency] {
+			return true
+		}
+	}
+	return false
+}
+
 func validateObject(name string, object *Object) error {
 	if object.Name == "" || object.Name != name || (object.Kind != "entity" && object.Kind != "value") {
 		return fmt.Errorf("invalid domain type")
@@ -133,4 +180,56 @@ func (a *Architecture) Allows(from, to string) bool {
 		}
 	}
 	return false
+}
+
+func (a *Architecture) ModuleAllows(from, to string) bool {
+	if from == to {
+		return true
+	}
+	source, target := a.Modules[from], a.Modules[to]
+	if source == nil || target == nil {
+		return false
+	}
+	if source.Uses[to] {
+		return source.Context == target.Context
+	}
+	for dependency := range source.Uses {
+		if resolved := a.resolveModuleDependency(source, dependency); resolved == to {
+			return true
+		}
+	}
+	if target.Implements != "" && source.Uses[target.Implements] {
+		if source.Context == target.Context {
+			return true
+		}
+		for _, relation := range a.Relations {
+			if relation.From == source.Context && relation.To == target.Context && relation.Via == target.Implements {
+				return true
+			}
+		}
+	}
+	qualifiedInterface := target.Context + "." + target.Implements
+	if target.Implements != "" && source.Uses[qualifiedInterface] {
+		for _, relation := range a.Relations {
+			if relation.From == source.Context && relation.To == target.Context && relation.Via == target.Implements {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (a *Architecture) resolveModuleDependency(source *Module, dependency string) string {
+	if _, ok := a.Modules[dependency]; ok {
+		return dependency
+	}
+	if candidate := source.Qualified + "." + dependency; a.Modules[candidate] != nil {
+		return candidate
+	}
+	if source.Parent != "" {
+		if candidate := source.Parent + "." + dependency; a.Modules[candidate] != nil {
+			return candidate
+		}
+	}
+	return ""
 }

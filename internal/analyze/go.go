@@ -62,10 +62,10 @@ func Go(root string, architecture *model.Architecture) error {
 		}
 		for _, imported := range pkg.Imports {
 			to := owners[imported]
-			if to == "" || to == from || architecture.Allows(from, to) {
+			if to == "" || to == from || architecture.ModuleAllows(from, to) {
 				continue
 			}
-			return fmt.Errorf("%s (%s) imports %s (%s) without a declared relationship", pkg.ImportPath, from, imported, to)
+			return fmt.Errorf("%s (%s) imports %s (%s) without a declared module dependency", pkg.ImportPath, from, imported, to)
 		}
 	}
 	return nil
@@ -79,6 +79,16 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 	mappings := make(map[string]model.FileMapping, len(architecture.Files))
 	entryPoints := 0
 	implementationRoot := filepath.Join(root, filepath.FromSlash(architecture.Implementation.Locator))
+	for _, module := range architecture.Modules {
+		location := moduleLocation(implementationRoot, architecture, module)
+		info, statErr := os.Stat(location)
+		if statErr != nil {
+			return fmt.Errorf("module %s folder %s: %w", module.Qualified, filepath.ToSlash(location), statErr)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("module %s path %s must be a folder", module.Qualified, filepath.ToSlash(location))
+		}
+	}
 	for _, mapping := range architecture.Files {
 		if mapping.Node == "" {
 			return fmt.Errorf("file %s has no architecture node", mapping.Path)
@@ -100,6 +110,25 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 		}
 		if !within(absolute, implementationRoot) {
 			return fmt.Errorf("mapped file %s is outside the architecture implementation", mapping.Path)
+		}
+		if module := architecture.Modules[mapping.Node]; module != nil {
+			location := moduleLocation(implementationRoot, architecture, module)
+			if !within(absolute, location) {
+				return fmt.Errorf("mapped file %s is outside module %s folder %s", mapping.Path, mapping.Node, filepath.ToSlash(location))
+			}
+			fileDirectory := filepath.Dir(absolute)
+			if fileDirectory != location && !withinModuleEntrypoint(fileDirectory, location, module) {
+				return fmt.Errorf("mapped file %s is in an undeclared submodule folder", mapping.Path)
+			}
+			if mapping.EntryPoint {
+				expected := filepath.Join(location, "cmd", kebabCase(mapping.EntryPointName), "main.go")
+				if kebabCase(module.Name) == kebabCase(mapping.EntryPointName) {
+					expected = filepath.Join(location, "main.go")
+				}
+				if absolute != expected {
+					return fmt.Errorf("entry point %s must follow Go convention %s", mapping.EntryPointName, filepath.ToSlash(expected))
+				}
+			}
 		}
 		if mapping.EntryPoint {
 			entryPoints++
@@ -134,7 +163,22 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 	})
 }
 
+func withinModuleEntrypoint(directory, location string, module *model.Module) bool {
+	for name := range module.Entrypoints {
+		if directory == filepath.Join(location, "cmd", kebabCase(name)) {
+			return true
+		}
+		if kebabCase(module.Name) == kebabCase(name) && directory == location {
+			return true
+		}
+	}
+	return false
+}
+
 func contextForNode(architecture *model.Architecture, node string) *model.Context {
+	if module := architecture.Modules[node]; module != nil {
+		return architecture.Contexts[module.Context]
+	}
 	if context := architecture.Contexts[node]; context != nil {
 		return context
 	}
@@ -144,6 +188,36 @@ func contextForNode(architecture *model.Architecture, node string) *model.Contex
 		}
 	}
 	return nil
+}
+
+func moduleLocation(root string, architecture *model.Architecture, module *model.Module) string {
+	var parts []string
+	var names []string
+	for current := module; current != nil; current = architecture.Modules[current.Parent] {
+		names = append(names, snakeCase(current.Name))
+	}
+	for index := len(names) - 1; index >= 0; index-- {
+		parts = append(parts, names[index])
+	}
+	return filepath.Join(append([]string{root}, parts...)...)
+}
+
+func snakeCase(value string) string {
+	var result []rune
+	for index, character := range value {
+		if index > 0 && character >= 'A' && character <= 'Z' {
+			result = append(result, '_')
+		}
+		if character >= 'A' && character <= 'Z' {
+			character += 'a' - 'A'
+		}
+		result = append(result, character)
+	}
+	return string(result)
+}
+
+func kebabCase(value string) string {
+	return strings.ReplaceAll(snakeCase(value), "_", "-")
 }
 
 func within(file, directory string) bool {
@@ -166,14 +240,14 @@ func ownerByDir(dir, root string, architecture *model.Architecture) (string, err
 		if err != nil || mappedDir != absoluteDir {
 			continue
 		}
-		context := contextForNode(architecture, mapping.Node)
-		if context == nil {
+		module := architecture.Modules[mapping.Node]
+		if module == nil {
 			continue
 		}
-		if owner != "" && owner != context.Name {
-			return "", fmt.Errorf("Go package %s maps to multiple contexts: %s and %s", dir, owner, context.Name)
+		if owner != "" && owner != module.Qualified {
+			return "", fmt.Errorf("Go package %s maps to multiple modules: %s and %s", dir, owner, module.Qualified)
 		}
-		owner = context.Name
+		owner = module.Qualified
 	}
 	return owner, nil
 }

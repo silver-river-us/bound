@@ -13,14 +13,22 @@ type Architecture struct {
 }
 
 type Module struct {
-	Name string
+	Name        string
+	Qualified   string
+	Context     string
+	Parent      string
+	Implements  string
+	Uses        map[string]bool
+	Modules     map[string]*Module
+	Entrypoints map[string]bool
 }
 
 // FileMapping assigns one implementation source file to one architecture context.
 type FileMapping struct {
-	Path       string
-	Node       string
-	EntryPoint bool
+	Path           string
+	Node           string
+	EntryPoint     bool
+	EntryPointName string
 }
 
 type Context struct {
@@ -28,6 +36,7 @@ type Context struct {
 	Description string
 	Exposes     map[string]bool
 	Interfaces  map[string]*Interface
+	Modules     map[string]*Module
 }
 
 type Implementation struct {

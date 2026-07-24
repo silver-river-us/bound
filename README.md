@@ -58,23 +58,22 @@ aggregate boundaries; it is not a claim about the eventual implementation
 type.
 
 ```bo
-entity Organization do
-  state :login :string
-end
-
-value TimeWindow do
-  state :since :timestamp
-  state :until :timestamp
-end
-```
-
-An entity or value can expose behaviors through an interface:
-
-```bo
 interface ActivitySource do
-  behavior activity(organization, timeWindow) returns Activity[]
+  entity Organization do
+    state :login :string
+  end
+
+  value TimeWindow do
+    state :since :timestamp
+    state :until :timestamp
+  end
+
+  behavior activity(organization Organization, window TimeWindow) returns Activity[]
 end
 ```
+
+Types are part of the interface that exposes them. Other interfaces reference
+them with qualified names such as `ActivitySource.Organization`.
 
 The architecture declaration stays in a `.bo` file. Source ownership is kept in
 a separate language-qualified `.go.bom` map imported by the architecture; this keeps implementation
@@ -89,23 +88,21 @@ architecture Commerce do
 end
 ```
 
-The `.go.bom` maps each Go source file to exactly one context or exposed module.
-Entry points are explicit mappings too:
+The `.go.bom` maps each Go source file to exactly one private module. Named
+entrypoints are bound to their implementation files there too:
 
 ```go.bom
 map Commerce do
-  "internal/orders/order.go" -> Orders
-  entrypoint "cmd/commerce/main.go" -> App
+  "internal/orders/order.go" -> Orders.Internal.Orders
+  entrypoint Commerce "cmd/commerce/main.go" -> App.Cmd.Commerce
 end
 ```
 
 Imports are optional, and paths are resolved relative to the importing `.bo`.
 The Go checker requires every Go source file under the architecture implementation to
-appear exactly once in the imported map. A mapping can target a context or one
-of its exposed interfaces, which lets architecturally significant modules such
-as `GithubActivity` and `DailyReport` own source files. Functions and ordinary
-language declarations may coexist in a mapped file; the architectural unit is
-the mapping target, not an individual Go function.
+appear exactly once in the imported map. Functions and ordinary language
+declarations may coexist in a mapped file; the architectural unit is the
+private module, not an individual Go function.
 
 Behaviors have explicit method names and may reference entities and values in
 their language-neutral signatures:
@@ -125,23 +122,36 @@ architecture GitHubDaily do
   implementation go "./"
   import "github-daily.go.bom"
 
-context DailyReporting do
-  interface GithubActivity do
-    behavior activity(organization, timeWindow) returns Activity[]
-  end
-  exposes GithubActivity
+  context DailyReporting do
+    interface GithubActivity do
+      behavior organizations() returns Organization[]
+    end
+    exposes GithubActivity
 
-  interface DailyReport do
-    behavior render(organizations, activities, warnings)
+    module DailyReporting do
+      module GithubActivity do
+        implements GithubActivity
+
+        module Github do
+          uses GithubActivity
+        end
+      end
+
+      module DailyReport do
+        uses GithubActivity
+        entrypoint GithubDaily
+      end
+    end
   end
-  exposes DailyReport
-end
 end
 ```
 
-This keeps folder structure in the source map instead of repeating locators
-throughout the architecture. A source file cannot silently belong to a
-different context just because it imports the right package.
+Module names conventionally produce snake-case folders, so the example declares
+`daily_reporting/github_activity/github` without embedding paths in the DSL.
+`implements` binds private code to a public contract, while `uses` permits a
+dependency on an interface or another private module. Nested source folders
+must have matching nested module declarations. The Go backend conventionally
+resolves `entrypoint GithubDaily` beneath `cmd/github-daily`.
 
 ## Try it
 
@@ -152,7 +162,9 @@ go run ./cmd/bound render examples/commerce.bo
 go test ./...
 ```
 
-The architecture model is intentionally independent of implementation languages. Future backends will inspect the corresponding source tree and enforce that its imports or module dependencies obey the declared relationships.
+The architecture model is intentionally independent of implementation
+languages. Backends translate module and entrypoint names into their native
+folder and executable conventions.
 
 The Go backend resolves the single implementation locator relative to the
 analyzed source root. Standard-library and third-party imports are ignored;
@@ -190,6 +202,6 @@ github-daily/
     └── cmd/           # explicit entry point
 ```
 
-The `.go.bom` maps both namespaces to the `GithubActivity` and `DailyReport`
-interfaces declared in the `DailyReporting` context, so a file cannot drift
-into an unrelated architectural folder.
+The `.go.bom` maps each file to its qualified private module. The checker
+enforces the conventional module folders and rejects imports that lack a
+matching `uses` declaration.

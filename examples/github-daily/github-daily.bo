@@ -55,6 +55,23 @@ architecture GitHubDaily do
       behavior render(snapshot ReportingSnapshot) returns string
     end
     exposes DailyReport
+
+    module DailyReporting do
+      module GithubActivity do
+        implements GithubActivity
+
+        module Github do
+          uses GithubActivity
+        end
+      end
+
+      module DailyReport do
+        implements DailyReport
+        uses GithubActivity
+        uses DailyReporting.DailyReporting.GithubActivity.Github
+        entrypoint GithubDaily
+      end
+    end
   end
 
 end

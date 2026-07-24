@@ -16,6 +16,9 @@ var (
 	architectureRE   = regexp.MustCompile(`^architecture\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	domainRE         = regexp.MustCompile(`^(entity|value)\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	moduleRE         = regexp.MustCompile(`^module\s+([A-Za-z_][A-Za-z0-9_.]*)\s+do$`)
+	implementsRE     = regexp.MustCompile(`^implements\s+([A-Za-z_][A-Za-z0-9_.]*)$`)
+	usesRE           = regexp.MustCompile(`^uses\s+([A-Za-z_][A-Za-z0-9_.]*)$`)
+	entrypointRE     = regexp.MustCompile(`^entrypoint\s+([A-Za-z_][A-Za-z0-9_]*)$`)
 	stateRE          = regexp.MustCompile(`^state\s+:([A-Za-z_][A-Za-z0-9_]*)\s+:([A-Za-z_][A-Za-z0-9_.]*(?:\[\])?)$`)
 	importRE         = regexp.MustCompile(`^import\s+"([^"]+)"$`)
 	contextRE        = regexp.MustCompile(`^context\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
@@ -32,7 +35,7 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 	var current *model.Context
 	var currentInterface *model.Interface
 	var currentObject *model.Object
-	var currentModule *model.Module
+	var moduleStack []*model.Module
 	pendingDescription := ""
 	lineNumber := 0
 	for scanner.Scan() {
@@ -74,13 +77,6 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			pendingDescription = ""
 			continue
 		}
-		if current == nil && currentModule != nil {
-			if line == "end" {
-				currentModule = nil
-				continue
-			}
-			return nil, syntaxError(lineNumber, "expected end")
-		}
 		if current == nil && line == "end" {
 			return architecture, nil
 		}
@@ -101,14 +97,6 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 				architecture.Imports = append(architecture.Imports, match[1])
 				continue
 			}
-			if match := moduleRE.FindStringSubmatch(line); match != nil {
-				if _, exists := architecture.Modules[match[1]]; exists {
-					return nil, syntaxError(lineNumber, "duplicate module")
-				}
-				currentModule = &model.Module{Name: match[1]}
-				architecture.Modules[match[1]] = currentModule
-				continue
-			}
 			if match := domainRE.FindStringSubmatch(line); match != nil {
 				if _, exists := architecture.Objects[match[2]]; exists {
 					return nil, syntaxError(lineNumber, "duplicate object")
@@ -122,7 +110,7 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 				if _, exists := architecture.Contexts[match[1]]; exists {
 					return nil, syntaxError(lineNumber, "duplicate context")
 				}
-				current = &model.Context{Name: match[1], Description: pendingDescription, Exposes: map[string]bool{}, Interfaces: map[string]*model.Interface{}}
+				current = &model.Context{Name: match[1], Description: pendingDescription, Exposes: map[string]bool{}, Interfaces: map[string]*model.Interface{}, Modules: map[string]*model.Module{}}
 				pendingDescription = ""
 				architecture.Contexts[current.Name] = current
 				continue
@@ -159,6 +147,37 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			pendingDescription = ""
 			continue
 		}
+		if len(moduleStack) > 0 {
+			module := moduleStack[len(moduleStack)-1]
+			if line == "end" {
+				moduleStack = moduleStack[:len(moduleStack)-1]
+				continue
+			}
+			if match := moduleRE.FindStringSubmatch(line); match != nil {
+				child, err := addModule(architecture, current, module, match[1])
+				if err != nil {
+					return nil, syntaxError(lineNumber, err.Error())
+				}
+				moduleStack = append(moduleStack, child)
+				continue
+			}
+			if match := implementsRE.FindStringSubmatch(line); match != nil {
+				if module.Implements != "" {
+					return nil, syntaxError(lineNumber, "duplicate implements")
+				}
+				module.Implements = match[1]
+				continue
+			}
+			if match := usesRE.FindStringSubmatch(line); match != nil {
+				module.Uses[match[1]] = true
+				continue
+			}
+			if match := entrypointRE.FindStringSubmatch(line); match != nil {
+				module.Entrypoints[match[1]] = true
+				continue
+			}
+			return nil, syntaxError(lineNumber, "expected module, implements, uses, entrypoint, or end")
+		}
 		if line == "end" {
 			current = nil
 			continue
@@ -174,8 +193,15 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			currentInterface = &model.Interface{Name: match[1], Description: pendingDescription, Types: map[string]*model.Object{}, Operations: map[string]model.Operation{}}
 			pendingDescription = ""
 			current.Interfaces[match[1]] = currentInterface
+		case moduleRE.MatchString(line):
+			match := moduleRE.FindStringSubmatch(line)
+			module, err := addModule(architecture, current, nil, match[1])
+			if err != nil {
+				return nil, syntaxError(lineNumber, err.Error())
+			}
+			moduleStack = append(moduleStack, module)
 		default:
-			return nil, syntaxError(lineNumber, "expected interface, exposes, or end")
+			return nil, syntaxError(lineNumber, "expected interface, module, exposes, or end")
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -187,8 +213,8 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 	if currentObject != nil {
 		return nil, fmt.Errorf("line %d: unclosed domain type %s", lineNumber, currentObject.Name)
 	}
-	if currentModule != nil {
-		return nil, fmt.Errorf("line %d: unclosed module %s", lineNumber, currentModule.Name)
+	if len(moduleStack) > 0 {
+		return nil, fmt.Errorf("line %d: unclosed module %s", lineNumber, moduleStack[len(moduleStack)-1].Qualified)
 	}
 	if current != nil {
 		if currentInterface != nil {
@@ -199,12 +225,38 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 	return nil, fmt.Errorf("unclosed architecture %s", architecture.Name)
 }
 
+func addModule(architecture *model.Architecture, context *model.Context, parent *model.Module, name string) (*model.Module, error) {
+	qualified := context.Name + "." + name
+	children := context.Modules
+	parentName := ""
+	if parent != nil {
+		qualified = parent.Qualified + "." + name
+		children = parent.Modules
+		parentName = parent.Qualified
+	}
+	if _, exists := children[name]; exists {
+		return nil, fmt.Errorf("duplicate module")
+	}
+	module := &model.Module{
+		Name:        name,
+		Qualified:   qualified,
+		Context:     context.Name,
+		Parent:      parentName,
+		Uses:        map[string]bool{},
+		Modules:     map[string]*model.Module{},
+		Entrypoints: map[string]bool{},
+	}
+	children[name] = module
+	architecture.Modules[qualified] = module
+	return module, nil
+}
+
 // ParseMap parses a .bom source map for an architecture.
 func ParseMap(r io.Reader) (string, []model.FileMapping, error) {
 	scanner := bufio.NewScanner(r)
 	mapRE := regexp.MustCompile(`^map\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	fileRE := regexp.MustCompile(`^"([^"]+)"\s*->\s*([A-Za-z_][A-Za-z0-9_.]*)$`)
-	entrypointRE := regexp.MustCompile(`^entrypoint\s+"([^"]+)"\s*->\s*([A-Za-z_][A-Za-z0-9_.]*)$`)
+	entrypointFileRE := regexp.MustCompile(`^entrypoint\s+([A-Za-z_][A-Za-z0-9_]*)\s+"([^"]+)"\s*->\s*([A-Za-z_][A-Za-z0-9_.]*)$`)
 	name := ""
 	files := make([]model.FileMapping, 0)
 	lineNumber := 0
@@ -229,8 +281,8 @@ func ParseMap(r io.Reader) (string, []model.FileMapping, error) {
 			files = append(files, model.FileMapping{Path: match[1], Node: match[2]})
 			continue
 		}
-		if match := entrypointRE.FindStringSubmatch(line); match != nil {
-			files = append(files, model.FileMapping{Path: match[1], Node: match[2], EntryPoint: true})
+		if match := entrypointFileRE.FindStringSubmatch(line); match != nil {
+			files = append(files, model.FileMapping{Path: match[2], Node: match[3], EntryPoint: true, EntryPointName: match[1]})
 			continue
 		}
 		return "", nil, syntaxError(lineNumber, "expected file mapping, entrypoint, or end")

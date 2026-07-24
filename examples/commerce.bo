@@ -25,6 +25,12 @@ architecture Commerce do
       behavior Place(orderID string, amount int) Order
     end
     exposes OrderPort
+
+    module Internal do
+      module Orders do
+        implements OrderPort
+      end
+    end
   end
 
   context Customers do
@@ -37,12 +43,38 @@ architecture Commerce do
       behavior Find(customerID string) Customer
     end
     exposes CustomerPort
+
+    module Internal do
+      module Customers do
+        implements CustomerPort
+      end
+    end
   end
 
   context Web do
+    interface Checkout do
+      behavior checkout(customerID string, orderID string, amount int) returns string
+    end
+    exposes Checkout
+
+    module Internal do
+      module Web do
+        implements Checkout
+        uses Orders.OrderPort
+        uses Customers.CustomerPort
+      end
+    end
   end
 
   context App do
+    module Cmd do
+      module Commerce do
+        entrypoint Commerce
+        uses Orders.OrderPort
+        uses Customers.CustomerPort
+        uses Web.Checkout
+      end
+    end
   end
 
   """
@@ -50,7 +82,7 @@ architecture Commerce do
   """
   Web -> Orders via OrderPort
   Web -> Customers via CustomerPort
-  App -> Web
-  App -> Orders
-  App -> Customers
+  App -> Web via Checkout
+  App -> Orders via OrderPort
+  App -> Customers via CustomerPort
 end
