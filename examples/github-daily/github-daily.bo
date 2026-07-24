@@ -17,6 +17,14 @@ architecture GitHubDaily do
     state :occurred_at :timestamp
   end
 
+  value DailyReportInput do
+    state :since :timestamp
+    state :until :timestamp
+    state :organizations :Organization[]
+    state :activities :Activity[]
+    state :warnings :string[]
+  end
+
   context DailyReporting do
     implementation go "./"
 
@@ -33,7 +41,7 @@ architecture GitHubDaily do
     Produces the daily report and its summary.
     """
     interface DailyReport do
-      behavior render(since timestamp, until timestamp, organizations Organization[], activities Activity[], warnings string[]) returns string
+      behavior render(input DailyReportInput) returns string
     end
     exposes DailyReport
   end
