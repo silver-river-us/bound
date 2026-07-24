@@ -70,7 +70,10 @@ type issueResult struct {
 }
 
 type commitResult struct {
-	HTMLURL    string `json:"html_url"`
+	HTMLURL string `json:"html_url"`
+	Author  struct {
+		Login string `json:"login"`
+	} `json:"author"`
 	Repository struct {
 		FullName string `json:"full_name"`
 	} `json:"repository"`
@@ -232,7 +235,10 @@ func (c *client) commitActivities(org string, since, until time.Time) ([]activit
 			if when.Before(since) || when.After(until) {
 				continue
 			}
-			actor := item.Commit.Committer.Name
+			actor := item.Author.Login
+			if actor == "" {
+				actor = item.Commit.Committer.Name
+			}
 			if actor == "" {
 				actor = item.Commit.Author.Name
 			}
@@ -347,10 +353,15 @@ func renderReport(since, until time.Time, orgs []organization, activities []acti
 	byOrg := map[string][]activity{}
 	bySource := map[string]int{}
 	byActor := map[string]int{}
+	systemActivities := 0
 	for _, item := range activities {
 		byOrg[item.Organization] = append(byOrg[item.Organization], item)
 		bySource[item.Source]++
-		byActor[item.Actor]++
+		if isHumanActor(item.Actor) {
+			byActor[item.Actor]++
+		} else {
+			systemActivities++
+		}
 	}
 	activeOrganizations := 0
 	for _, org := range orgs {
@@ -383,6 +394,9 @@ func renderReport(since, until time.Time, orgs []organization, activities []acti
 	for _, actor := range actors {
 		fmt.Fprintf(&b, "| %s | %d |\n", actor, byActor[actor])
 	}
+	if systemActivities > 0 {
+		fmt.Fprintf(&b, "\n_%d automated/system activities omitted from this human-user table._\n", systemActivities)
+	}
 	b.WriteString("\n### By organization\n\n| Organization | Activities |\n|---|---:|\n")
 	for _, org := range orgs {
 		fmt.Fprintf(&b, "| %s | %d |\n", org.Login, len(byOrg[org.Login]))
@@ -412,6 +426,14 @@ func renderReport(since, until time.Time, orgs []organization, activities []acti
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+func isHumanActor(actor string) bool {
+	name := strings.ToLower(strings.TrimSpace(actor))
+	if name == "" || name == "github" || strings.HasSuffix(name, "[bot]") {
+		return false
+	}
+	return !strings.Contains(name, "github-actions") && !strings.Contains(name, "dependabot")
 }
 
 func fatal(err error) { fmt.Fprintln(os.Stderr, "github-daily:", err); os.Exit(1) }
