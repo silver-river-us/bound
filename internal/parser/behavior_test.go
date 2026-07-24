@@ -69,3 +69,30 @@ end
 		t.Fatalf("error = %v, want unknown type Snapshop", err)
 	}
 }
+
+func TestValidationRequiresRelationshipForCrossContextType(t *testing.T) {
+	architecture, err := Parse(strings.NewReader(`
+architecture Example do
+  implementation go "./"
+  context Source do
+    interface Public do
+      value Item do
+        state :id :string
+      end
+    end
+    exposes Public
+  end
+  context Consumer do
+    interface Reader do
+      behavior read() returns Source.Public.Item
+    end
+  end
+end
+`))
+	if err != nil {
+		t.Fatalf("parse architecture: %v", err)
+	}
+	if err := architecture.Validate(); err == nil || !strings.Contains(err.Error(), "unknown return type") {
+		t.Fatalf("error = %v, want cross-context type relationship rejection", err)
+	}
+}

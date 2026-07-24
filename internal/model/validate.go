@@ -164,7 +164,10 @@ func (a *Architecture) validContractType(contextName string, contract *Interface
 	}
 	if len(parts) == 3 {
 		context := a.Contexts[parts[0]]
-		return context != nil && context.Exposes[parts[1]] && context.Interfaces[parts[1]].Types[parts[2]] != nil
+		return context != nil &&
+			context.Exposes[parts[1]] &&
+			context.Interfaces[parts[1]].Types[parts[2]] != nil &&
+			a.hasRelation(contextName, parts[0], parts[1])
 	}
 	return false
 }
