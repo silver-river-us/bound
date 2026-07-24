@@ -9,6 +9,22 @@ import (
 	"github.com/silver-river-us/bound/examples/github-daily/reporting/activity"
 )
 
+type ReportingSnapshot struct {
+	Window        githubactivity.TimeWindow
+	Organizations []githubactivity.Organization
+	Feed          githubactivity.ActivityFeed
+}
+
+func Render(snapshot ReportingSnapshot) string {
+	return RenderReport(
+		snapshot.Window.Since,
+		snapshot.Window.Until,
+		snapshot.Organizations,
+		snapshot.Feed.Activities,
+		snapshot.Feed.Warnings,
+	)
+}
+
 func RenderReport(since, until time.Time, orgs []githubactivity.Organization, activities []githubactivity.Activity, warnings []string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# GitHub activity report\n\nPeriod: `%s` to `%s`\n\n", since.Format(time.RFC3339), until.Format(time.RFC3339))

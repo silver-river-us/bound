@@ -47,7 +47,11 @@ func main() {
 	}
 	sort.Slice(activities, func(i, j int) bool { return activities[i].CreatedAt.Before(activities[j].CreatedAt) })
 
-	report := dailyreport.RenderReport(since, time.Now().UTC(), orgs, activities, warnings)
+	report := dailyreport.Render(dailyreport.ReportingSnapshot{
+		Window:        githubactivity.TimeWindow{Since: since, Until: time.Now().UTC()},
+		Organizations: orgs,
+		Feed:          githubactivity.ActivityFeed{Activities: activities, Warnings: warnings},
+	})
 	if *outputFlag == "-" {
 		fmt.Print(report)
 		return

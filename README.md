@@ -48,7 +48,7 @@ Bound uses DDD-oriented terms for domain design:
   are interchangeable and are generally immutable or replaced as a whole.
 - `state` declares the data that makes up an entity or value. In DDD, state is
   the collection of attributes; `state` is the architectural keyword in Bound.
-- `behavior` declares what an interface or module can do. It is intentionally
+- `behavior` declares what an interface can do. It is intentionally
   neutral between commands, queries, and language-specific functions.
 
 Use `entity` when identity, ownership, lifecycle, or invariants matter. Use
@@ -198,8 +198,8 @@ github-daily/
     │   ├── *.go      # organizations, events, activities, search results
     │   └── github/   # GitHub API client and activity sources
     └── daily_report/
-    ├── report.go     # report behavior
-    └── cmd/           # explicit entry point
+        ├── report.go # report behavior
+        └── cmd/      # conventional named entrypoint
 ```
 
 The `.go.bom` maps each file to its qualified private module. The checker

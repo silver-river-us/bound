@@ -5,6 +5,7 @@ map GitHubDaily do
   "reporting/activity/issue_result.go" -> Reporting.Activity
   "reporting/activity/commit_result.go" -> Reporting.Activity
   "reporting/activity/search_response.go" -> Reporting.Activity
+  "reporting/activity/contract.go" -> Reporting.Activity
   "reporting/activity/github/constants.go" -> Reporting.Activity.Github
   "reporting/activity/github/http_client.go" -> Reporting.Activity.Github
   "reporting/activity/github/client.go" -> Reporting.Activity.Github
