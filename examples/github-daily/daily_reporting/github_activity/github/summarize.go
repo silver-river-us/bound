@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/silver-river-us/bound/examples/github-daily/github_activity"
+	"github.com/silver-river-us/bound/examples/github-daily/daily_reporting/github_activity"
 )
 
 func summarize(item githubactivity.Event) string {

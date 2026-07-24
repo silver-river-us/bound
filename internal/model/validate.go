@@ -118,7 +118,10 @@ func (a *Architecture) ImplementationForNode(name string) (Implementation, bool)
 	}
 	for _, context := range a.Contexts {
 		if contract, ok := context.Interfaces[name]; ok {
-			return contract.Implementation, contract.Implementation.Language != "" && contract.Implementation.Locator != ""
+			if contract.Implementation.Language != "" {
+				return contract.Implementation, contract.Implementation.Locator != ""
+			}
+			return context.Implementation, context.Implementation.Language != "" && context.Implementation.Locator != ""
 		}
 	}
 	return Implementation{}, false

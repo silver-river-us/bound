@@ -110,25 +110,38 @@ interface ActivitySource do
 end
 ```
 
-The architecture can declare module namespaces and their implementation folders
-directly in `.bo`. The Go checker requires every mapped file to be physically
-inside the declared module folder:
+The architecture can declare every module namespace and its implementation
+folder directly in `.bo`. The Go checker requires every mapped file to be
+physically inside the declared module folder:
 
 ```bo
+context DailyReporting do
+  implementation go "./"
+  interface GithubActivity do
+    behavior activity(organization, timeWindow) returns Activity[]
+  end
+  exposes GithubActivity
+
+  interface DailyReport do
+    behavior render(organizations, activities, warnings)
+  end
+  exposes DailyReport
+end
+
 module GithubActivity do
-  implementation go "./github_activity"
+  implementation go "./daily_reporting/github_activity"
 end
 
 module GithubActivity.GitHub do
-  implementation go "./github_activity/github"
+  implementation go "./daily_reporting/github_activity/github"
 end
 
 module DailyReport do
-  implementation go "./daily_report"
+  implementation go "./daily_reporting/daily_report"
 end
 
 module DailyReport.Command do
-  implementation go "./daily_report/cmd/github-daily"
+  implementation go "./daily_reporting/daily_report/cmd/github-daily"
 end
 ```
 
@@ -156,8 +169,8 @@ Interfaces are architecture contracts, not tied to one implementation language. 
 The `examples/github-daily` program is declared by [`github-daily.bo`](examples/github-daily/github-daily.bo). It discovers all organizations visible to the authenticated GitHub user, reads each organization's activity sources for the last 24 hours, and writes a Markdown report. The program validates that `.bo` architecture before it runs.
 
 ```sh
-go run ./examples/github-daily/daily_report/cmd/github-daily
-go run ./examples/github-daily/daily_report/cmd/github-daily -since 48h -output -
+go run ./examples/github-daily/daily_reporting/daily_report/cmd/github-daily
+go run ./examples/github-daily/daily_reporting/daily_report/cmd/github-daily -since 48h -output -
 ```
 
 Authentication uses `GITHUB_TOKEN` when set, otherwise the token from `gh auth token`. Reports are written to `reports/github-activity-YYYY-MM-DD.md` by default.
@@ -172,10 +185,11 @@ The implementation namespace follows the architecture:
 
 ```text
 github-daily/
-├── github_activity/
-│   ├── *.go          # organizations, events, activities, search results
-│   └── github/       # GitHub API client and activity sources
-└── daily_report/
+└── daily_reporting/
+    ├── github_activity/
+    │   ├── *.go      # organizations, events, activities, search results
+    │   └── github/   # GitHub API client and activity sources
+    └── daily_report/
     ├── report.go     # report behavior
     └── cmd/           # explicit entry point
 ```

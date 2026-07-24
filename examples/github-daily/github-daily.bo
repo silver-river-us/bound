@@ -7,19 +7,19 @@ architecture GitHubDaily do
   import "github-daily.go.bom"
 
   module GithubActivity do
-    implementation go "./github_activity"
+    implementation go "./daily_reporting/github_activity"
   end
 
   module GithubActivity.GitHub do
-    implementation go "./github_activity/github"
+    implementation go "./daily_reporting/github_activity/github"
   end
 
   module DailyReport do
-    implementation go "./daily_report"
+    implementation go "./daily_reporting/daily_report"
   end
 
   module DailyReport.Command do
-    implementation go "./daily_report/cmd/github-daily"
+    implementation go "./daily_reporting/daily_report/cmd/github-daily"
   end
 
   entity Organization do

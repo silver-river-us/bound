@@ -91,7 +91,7 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 		if info.IsDir() || filepath.Ext(absolute) != ".go" {
 			return fmt.Errorf("mapped file %s must be a Go source file", mapping.Path)
 		}
-		location := filepath.Join(root, implementation.Locator)
+		location := locatorForNode(root, architecture, mapping.Node)
 		if !within(absolute, location) {
 			return fmt.Errorf("mapped file %s is outside context %s implementation", mapping.Path, mapping.Node)
 		}
@@ -147,6 +147,45 @@ func contextForNode(architecture *model.Architecture, node string) *model.Contex
 	return nil
 }
 
+func locatorForNode(root string, architecture *model.Architecture, node string) string {
+	if module, ok := architecture.Modules[node]; ok {
+		return filepath.Join(root, module.Implementation.Locator)
+	}
+	if context, ok := architecture.Contexts[node]; ok {
+		return contextLocator(root, context.Name, context.Implementation.Locator)
+	}
+	for _, context := range architecture.Contexts {
+		if contract, ok := context.Interfaces[node]; ok {
+			if contract.Implementation.Locator != "" {
+				return filepath.Join(root, contract.Implementation.Locator)
+			}
+			return filepath.Join(contextLocator(root, context.Name, context.Implementation.Locator), snakeCase(contract.Name))
+		}
+	}
+	return root
+}
+
+func contextLocator(root, contextName, locator string) string {
+	if filepath.Clean(locator) == "." {
+		return filepath.Join(root, snakeCase(contextName))
+	}
+	return filepath.Join(root, locator)
+}
+
+func snakeCase(value string) string {
+	var result []rune
+	for index, character := range value {
+		if index > 0 && character >= 'A' && character <= 'Z' {
+			result = append(result, '_')
+		}
+		if character >= 'A' && character <= 'Z' {
+			character += 'a' - 'A'
+		}
+		result = append(result, character)
+	}
+	return string(result)
+}
+
 func within(file, directory string) bool {
 	absoluteFile, fileErr := filepath.Abs(file)
 	absoluteDirectory, directoryErr := filepath.Abs(directory)
@@ -165,7 +204,7 @@ func ownerByDir(dir, root string, architecture *model.Architecture) string {
 		if context.Implementation.Language != "go" {
 			continue
 		}
-		location, err := filepath.Abs(filepath.Join(root, context.Implementation.Locator))
+		location, err := filepath.Abs(contextLocator(root, context.Name, context.Implementation.Locator))
 		if err != nil {
 			continue
 		}

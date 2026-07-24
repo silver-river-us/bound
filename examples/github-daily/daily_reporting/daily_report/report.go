@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/silver-river-us/bound/examples/github-daily/github_activity"
+	"github.com/silver-river-us/bound/examples/github-daily/daily_reporting/github_activity"
 )
 
 func RenderReport(since, until time.Time, orgs []githubactivity.Organization, activities []githubactivity.Activity, warnings []string) string {
