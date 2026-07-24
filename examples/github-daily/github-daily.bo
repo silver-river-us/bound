@@ -33,7 +33,7 @@ architecture GitHubDaily do
     Produces the daily report and its summary.
     """
     interface DailyReport do
-      behavior render(organizations, activities, warnings)
+      behavior render(since timestamp, until timestamp, organizations Organization[], activities Activity[], warnings string[]) returns string
     end
     exposes DailyReport
   end
