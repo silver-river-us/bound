@@ -58,3 +58,9 @@ go run ./examples/github-daily -since 48h -output -
 ```
 
 Authentication uses `GITHUB_TOKEN` when set, otherwise the token from `gh auth token`. Reports are written to `reports/github-activity-YYYY-MM-DD.md` by default.
+
+The report combines three GitHub sources: organization events, commit search,
+and issue/pull-request search. The latter represents an updated issue or pull
+request, not every individual comment or review actor. GitHub audit-log access
+is organization-admin scoped, so the program reports everything available to
+the authenticated token rather than claiming universal private-audit coverage.

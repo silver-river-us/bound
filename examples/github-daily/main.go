@@ -44,11 +44,47 @@ type event struct {
 
 type activity struct {
 	Organization string
+	Source       string
 	Type         string
 	Actor        string
 	Repository   string
 	CreatedAt    time.Time
 	Summary      string
+	URL          string
+}
+
+type searchResponse[T any] struct {
+	TotalCount int `json:"total_count"`
+	Items      []T `json:"items"`
+}
+
+type issueResult struct {
+	Title         string    `json:"title"`
+	HTMLURL       string    `json:"html_url"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	RepositoryURL string    `json:"repository_url"`
+	User          struct {
+		Login string `json:"login"`
+	} `json:"user"`
+	PullRequest *struct{} `json:"pull_request"`
+}
+
+type commitResult struct {
+	HTMLURL    string `json:"html_url"`
+	Repository struct {
+		FullName string `json:"full_name"`
+	} `json:"repository"`
+	Commit struct {
+		Message string `json:"message"`
+		Author  struct {
+			Name string    `json:"name"`
+			Date time.Time `json:"date"`
+		} `json:"author"`
+		Committer struct {
+			Name string    `json:"name"`
+			Date time.Time `json:"date"`
+		} `json:"committer"`
+	} `json:"commit"`
 }
 
 func main() {
@@ -72,12 +108,9 @@ func main() {
 	activities := make([]activity, 0)
 	warnings := make([]string, 0)
 	for _, org := range orgs {
-		items, err := c.activities(org.Login, since)
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("%s: %v", org.Login, err))
-			continue
-		}
+		items, orgWarnings := c.activities(org.Login, since, time.Now().UTC())
 		activities = append(activities, items...)
+		warnings = append(warnings, orgWarnings...)
 	}
 	sort.Slice(activities, func(i, j int) bool { return activities[i].CreatedAt.Before(activities[j].CreatedAt) })
 
@@ -124,7 +157,31 @@ func (c *client) organizations() ([]organization, error) {
 	}
 }
 
-func (c *client) activities(org string, since time.Time) ([]activity, error) {
+func (c *client) activities(org string, since, until time.Time) ([]activity, []string) {
+	activities := make([]activity, 0)
+	warnings := make([]string, 0)
+	events, err := c.eventActivities(org, since)
+	if err != nil {
+		warnings = append(warnings, fmt.Sprintf("%s events: %v", org, err))
+	} else {
+		activities = append(activities, events...)
+	}
+	commits, err := c.commitActivities(org, since, until)
+	if err != nil {
+		warnings = append(warnings, fmt.Sprintf("%s commits: %v", org, err))
+	} else {
+		activities = append(activities, commits...)
+	}
+	changes, err := c.issueActivities(org, since, until)
+	if err != nil {
+		warnings = append(warnings, fmt.Sprintf("%s issues/PRs: %v", org, err))
+	} else {
+		activities = append(activities, changes...)
+	}
+	return activities, warnings
+}
+
+func (c *client) eventActivities(org string, since time.Time) ([]activity, error) {
 	activities := make([]activity, 0)
 	for page := 1; page <= 10; page++ {
 		var events []event
@@ -141,6 +198,7 @@ func (c *client) activities(org string, since time.Time) ([]activity, error) {
 			}
 			activities = append(activities, activity{
 				Organization: org,
+				Source:       "events",
 				Type:         strings.TrimSuffix(item.Type, "Event"),
 				Actor:        item.Actor.Login,
 				Repository:   item.Repo.Name,
@@ -149,6 +207,85 @@ func (c *client) activities(org string, since time.Time) ([]activity, error) {
 			})
 		}
 		if len(events) < 100 {
+			break
+		}
+	}
+	return activities, nil
+}
+
+func (c *client) commitActivities(org string, since, until time.Time) ([]activity, error) {
+	activities := make([]activity, 0)
+	for page := 1; page <= 10; page++ {
+		query := url.Values{}
+		query.Set("q", fmt.Sprintf("org:%s committer-date:%s..%s", org, since.Format(time.RFC3339), until.Format(time.RFC3339)))
+		query.Set("per_page", "100")
+		query.Set("page", fmt.Sprint(page))
+		var result searchResponse[commitResult]
+		if err := c.get("/search/commits?"+query.Encode(), &result); err != nil {
+			return nil, err
+		}
+		for _, item := range result.Items {
+			when := item.Commit.Committer.Date
+			if when.IsZero() {
+				when = item.Commit.Author.Date
+			}
+			if when.Before(since) || when.After(until) {
+				continue
+			}
+			actor := item.Commit.Committer.Name
+			if actor == "" {
+				actor = item.Commit.Author.Name
+			}
+			activities = append(activities, activity{
+				Organization: org,
+				Source:       "commits",
+				Type:         "Commit",
+				Actor:        actor,
+				Repository:   item.Repository.FullName,
+				CreatedAt:    when,
+				Summary:      firstLine(item.Commit.Message),
+				URL:          item.HTMLURL,
+			})
+		}
+		if len(result.Items) < 100 {
+			break
+		}
+	}
+	return activities, nil
+}
+
+func (c *client) issueActivities(org string, since, until time.Time) ([]activity, error) {
+	activities := make([]activity, 0)
+	for page := 1; page <= 10; page++ {
+		query := url.Values{}
+		query.Set("q", fmt.Sprintf("org:%s updated:%s..%s", org, since.Format(time.RFC3339), until.Format(time.RFC3339)))
+		query.Set("per_page", "100")
+		query.Set("page", fmt.Sprint(page))
+		var result searchResponse[issueResult]
+		if err := c.get("/search/issues?"+query.Encode(), &result); err != nil {
+			return nil, err
+		}
+		for _, item := range result.Items {
+			if item.UpdatedAt.Before(since) || item.UpdatedAt.After(until) {
+				continue
+			}
+			typeName := "Issue"
+			if item.PullRequest != nil {
+				typeName = "Pull request"
+			}
+			repository := strings.TrimPrefix(item.RepositoryURL, "https://api.github.com/repos/")
+			activities = append(activities, activity{
+				Organization: org,
+				Source:       "issues",
+				Type:         typeName,
+				Actor:        item.User.Login,
+				Repository:   repository,
+				CreatedAt:    item.UpdatedAt,
+				Summary:      typeName + " updated: " + firstLine(item.Title),
+				URL:          item.HTMLURL,
+			})
+		}
+		if len(result.Items) < 100 {
 			break
 		}
 	}
@@ -199,6 +336,10 @@ func summarize(item event) string {
 	return strings.TrimSuffix(item.Type, "Event")
 }
 
+func firstLine(value string) string {
+	return strings.TrimSpace(strings.SplitN(value, "\n", 2)[0])
+}
+
 func renderReport(since, until time.Time, orgs []organization, activities []activity, warnings []string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# GitHub activity report\n\nPeriod: `%s` to `%s`\n\n", since.Format(time.RFC3339), until.Format(time.RFC3339))
@@ -222,7 +363,11 @@ func renderReport(since, until time.Time, orgs []organization, activities []acti
 			continue
 		}
 		for _, item := range items {
-			fmt.Fprintf(&b, "- `%s` **%s** `%s` — %s\n", item.CreatedAt.Format("15:04"), item.Actor, item.Repository, item.Summary)
+			location := fmt.Sprintf("`%s` **%s** `%s`", item.CreatedAt.Format("15:04"), item.Actor, item.Repository)
+			if item.URL != "" {
+				location = fmt.Sprintf("[%s](%s)", location, item.URL)
+			}
+			fmt.Fprintf(&b, "- %s — _%s_ — %s\n", location, item.Source, item.Summary)
 		}
 		b.WriteString("\n")
 	}
