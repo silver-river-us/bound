@@ -33,7 +33,7 @@ end
 		t.Fatalf("parse architecture: %v", err)
 	}
 
-	renderer := architecture.Modules["Reporting.Reporting.Renderer"]
+	renderer := architecture.Modules["Reporting.Renderer"]
 	if renderer == nil {
 		t.Fatal("renderer module was not registered")
 	}

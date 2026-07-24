@@ -68,7 +68,7 @@ architecture GitHubDaily do
       module DailyReport do
         implements DailyReport
         uses GithubActivity
-        uses DailyReporting.DailyReporting.GithubActivity.Github
+        uses GithubActivity.Github
         entrypoint GithubDaily
       end
     end

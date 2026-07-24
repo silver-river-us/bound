@@ -227,6 +227,9 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 
 func addModule(architecture *model.Architecture, context *model.Context, parent *model.Module, name string) (*model.Module, error) {
 	qualified := context.Name + "." + name
+	if name == context.Name {
+		qualified = context.Name
+	}
 	children := context.Modules
 	parentName := ""
 	if parent != nil {
