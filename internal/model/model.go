@@ -7,6 +7,7 @@ type Architecture struct {
 	Objects     map[string]*Object
 	Relations   []Relation
 	Files       []FileMapping
+	Imports     []string
 }
 
 // FileMapping assigns one implementation source file to one architecture context.

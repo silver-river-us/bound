@@ -28,9 +28,6 @@ architecture Commerce do
     end
     exposes CustomerPort
 	  end
-	  files do
-	    entrypoint "cmd/commerce/main.go" -> Orders
-	  end
 	  Orders -> Customers via CustomerPort
 end`))
 	if err != nil {
@@ -54,8 +51,18 @@ end`))
 	if a.Contexts["Customers"].Implementation.Language != "rust" {
 		t.Fatal("expected Rust implementation")
 	}
-	if len(a.Files) != 1 || !a.Files[0].EntryPoint {
-		t.Fatalf("expected explicit file mapping and entry point, got %#v", a.Files)
+}
+
+func TestParseMap(t *testing.T) {
+	name, files, err := ParseMap(strings.NewReader(`map Commerce do
+  "internal/orders/order.go" -> Orders
+  entrypoint "cmd/commerce/main.go" -> App
+end`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "Commerce" || len(files) != 2 || !files[1].EntryPoint {
+		t.Fatalf("unexpected map: %s %#v", name, files)
 	}
 }
 

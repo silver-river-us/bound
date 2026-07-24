@@ -3,19 +3,20 @@ package parser
 import (
 	"bufio"
 	"fmt"
-	"github.com/silver-river-us/bound/internal/model"
 	"io"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/silver-river-us/bound/internal/model"
 )
 
 var (
 	architectureRE   = regexp.MustCompile(`^architecture\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	objectRE         = regexp.MustCompile(`^object\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	attributeRE      = regexp.MustCompile(`^attribute\s+:([A-Za-z_][A-Za-z0-9_]*)\s+:([A-Za-z_][A-Za-z0-9_\[\]]*)$`)
-	filesRE          = regexp.MustCompile(`^files\s+do$`)
-	fileMappingRE    = regexp.MustCompile(`^"([^"]+)"\s*->\s*([A-Za-z_][A-Za-z0-9_]*)$`)
-	entrypointRE     = regexp.MustCompile(`^entrypoint\s+"([^"]+)"\s*->\s*([A-Za-z_][A-Za-z0-9_]*)$`)
+	importRE         = regexp.MustCompile(`^import\s+"([^"]+)"$`)
 	contextRE        = regexp.MustCompile(`^context\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	implementationRE = regexp.MustCompile(`^implementation\s+([A-Za-z_][A-Za-z0-9_+-]*)\s+"([^"]+)"$`)
 	exposesRE        = regexp.MustCompile(`^exposes\s+([A-Za-z_][A-Za-z0-9_]*)$`)
@@ -30,7 +31,6 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 	var current *model.Context
 	var currentInterface *model.Interface
 	var currentObject *model.Object
-	currentFiles := false
 	pendingDescription := ""
 	lineNumber := 0
 	for scanner.Scan() {
@@ -72,27 +72,12 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			pendingDescription = ""
 			continue
 		}
-		if current == nil && currentObject == nil && currentFiles {
-			if line == "end" {
-				currentFiles = false
-				continue
-			}
-			if match := fileMappingRE.FindStringSubmatch(line); match != nil {
-				architecture.Files = append(architecture.Files, model.FileMapping{Path: match[1], Node: match[2]})
-				continue
-			}
-			if match := entrypointRE.FindStringSubmatch(line); match != nil {
-				architecture.Files = append(architecture.Files, model.FileMapping{Path: match[1], Node: match[2], EntryPoint: true})
-				continue
-			}
-			return nil, syntaxError(lineNumber, "expected file mapping, entrypoint, or end")
-		}
 		if current == nil && line == "end" {
 			return architecture, nil
 		}
 		if current == nil {
-			if filesRE.MatchString(line) {
-				currentFiles = true
+			if match := importRE.FindStringSubmatch(line); match != nil {
+				architecture.Imports = append(architecture.Imports, match[1])
 				continue
 			}
 			if match := objectRE.FindStringSubmatch(line); match != nil {
@@ -174,10 +159,123 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 		}
 		return nil, fmt.Errorf("line %d: unclosed context %s", lineNumber, current.Name)
 	}
-	if currentFiles {
-		return nil, fmt.Errorf("line %d: unclosed files block", lineNumber)
-	}
 	return nil, fmt.Errorf("unclosed architecture %s", architecture.Name)
+}
+
+// ParseMap parses a .bom source map for an architecture.
+func ParseMap(r io.Reader) (string, []model.FileMapping, error) {
+	scanner := bufio.NewScanner(r)
+	mapRE := regexp.MustCompile(`^map\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
+	fileRE := regexp.MustCompile(`^"([^"]+)"\s*->\s*([A-Za-z_][A-Za-z0-9_]*)$`)
+	entrypointRE := regexp.MustCompile(`^entrypoint\s+"([^"]+)"\s*->\s*([A-Za-z_][A-Za-z0-9_]*)$`)
+	name := ""
+	files := make([]model.FileMapping, 0)
+	lineNumber := 0
+	for scanner.Scan() {
+		lineNumber++
+		line := strings.TrimSpace(strings.SplitN(scanner.Text(), "#", 2)[0])
+		if line == "" {
+			continue
+		}
+		if name == "" {
+			match := mapRE.FindStringSubmatch(line)
+			if match == nil {
+				return "", nil, syntaxError(lineNumber, "expected map declaration")
+			}
+			name = match[1]
+			continue
+		}
+		if line == "end" {
+			return name, files, nil
+		}
+		if match := fileRE.FindStringSubmatch(line); match != nil {
+			files = append(files, model.FileMapping{Path: match[1], Node: match[2]})
+			continue
+		}
+		if match := entrypointRE.FindStringSubmatch(line); match != nil {
+			files = append(files, model.FileMapping{Path: match[1], Node: match[2], EntryPoint: true})
+			continue
+		}
+		return "", nil, syntaxError(lineNumber, "expected file mapping, entrypoint, or end")
+	}
+	if err := scanner.Err(); err != nil {
+		return "", nil, err
+	}
+	if name == "" {
+		return "", nil, fmt.Errorf("empty Bound map")
+	}
+	return "", nil, fmt.Errorf("unclosed map %s", name)
+}
+
+// ParseFile parses an architecture and its optional relative imports.
+func ParseFile(path string) (*model.Architecture, error) {
+	return parseFile(path, map[string]bool{})
+}
+
+func parseFile(path string, visiting map[string]bool) (*model.Architecture, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	if visiting[absPath] {
+		return nil, fmt.Errorf("cyclic Bound import: %s", path)
+	}
+	visiting[absPath] = true
+	defer delete(visiting, absPath)
+	file, err := os.Open(absPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	architecture, err := Parse(file)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	for _, importPath := range architecture.Imports {
+		importedPath := filepath.Join(filepath.Dir(absPath), importPath)
+		if filepath.Ext(importedPath) == ".bom" {
+			mapFile, err := os.Open(importedPath)
+			if err != nil {
+				return nil, fmt.Errorf("open import %s: %w", importPath, err)
+			}
+			mapName, files, parseErr := ParseMap(mapFile)
+			mapFile.Close()
+			if parseErr != nil {
+				return nil, fmt.Errorf("parse import %s: %w", importPath, parseErr)
+			}
+			if mapName != architecture.Name {
+				return nil, fmt.Errorf("map %s belongs to %s, expected %s", importPath, mapName, architecture.Name)
+			}
+			architecture.Files = append(architecture.Files, files...)
+			continue
+		}
+		imported, err := parseFile(importedPath, visiting)
+		if err != nil {
+			return nil, err
+		}
+		if err := merge(architecture, imported); err != nil {
+			return nil, fmt.Errorf("import %s: %w", importPath, err)
+		}
+	}
+	return architecture, nil
+}
+
+func merge(target, imported *model.Architecture) error {
+	for name, context := range imported.Contexts {
+		if _, exists := target.Contexts[name]; exists {
+			return fmt.Errorf("duplicate context %s", name)
+		}
+		target.Contexts[name] = context
+	}
+	for name, object := range imported.Objects {
+		if _, exists := target.Objects[name]; exists {
+			return fmt.Errorf("duplicate object %s", name)
+		}
+		target.Objects[name] = object
+	}
+	target.Relations = append(target.Relations, imported.Relations...)
+	target.Files = append(target.Files, imported.Files...)
+	return nil
 }
 
 func syntaxError(line int, message string) error { return fmt.Errorf("line %d: %s", line, message) }

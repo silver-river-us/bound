@@ -26,12 +26,7 @@ func main() {
 		fail("expected exactly one .bo file")
 	}
 
-	file, err := os.Open(flags.Arg(0))
-	if err != nil {
-		fail(err.Error())
-	}
-	defer file.Close()
-	a, err := parser.Parse(file)
+	a, err := parser.ParseFile(flags.Arg(0))
 	if err != nil {
 		fail(err.Error())
 	}

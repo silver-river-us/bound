@@ -15,12 +15,7 @@ func exampleArchitecture(t *testing.T) *model.Architecture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	file, err := os.Open(filepath.Join(root, "..", "..", "examples", "commerce.bo"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer file.Close()
-	a, err := parser.Parse(file)
+	a, err := parser.ParseFile(filepath.Join(root, "..", "..", "examples", "commerce.bo"))
 	if err != nil {
 		t.Fatal(err)
 	}

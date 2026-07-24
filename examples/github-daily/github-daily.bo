@@ -4,6 +4,8 @@ collects activity through declared ports, and renders a human-facing report.
 The Go program is only one implementation of these contracts.
 """
 architecture GitHubDaily do
+  import "github-daily.bom"
+
   object Organization do
     attribute :login :string
   end
@@ -36,8 +38,4 @@ architecture GitHubDaily do
     exposes DailyReport
   end
 
-  files do
-    entrypoint "main.go" -> DailyReporting
-    "main_test.go" -> DailyReporting
-  end
 end

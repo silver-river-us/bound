@@ -447,12 +447,7 @@ func isHumanActor(actor string) bool {
 func fatal(err error) { fmt.Fprintln(os.Stderr, "github-daily:", err); os.Exit(1) }
 
 func checkArchitecture(path, sourceRoot string) error {
-	file, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("open architecture: %w", err)
-	}
-	defer file.Close()
-	architecture, err := parser.Parse(file)
+	architecture, err := parser.ParseFile(path)
 	if err != nil {
 		return fmt.Errorf("parse architecture: %w", err)
 	}

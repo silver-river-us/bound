@@ -45,19 +45,32 @@ end
 Attributes use Ruby-like symbols for both the field name and its language-neutral
 type: `attribute :name :type`.
 
-Implementation source files are mapped to exactly one context in a `files` block.
-Entry points are explicit mappings too:
+The architecture declaration stays in a `.bo` file. Source ownership is kept in
+a separate `.bom` map imported by the architecture; this keeps implementation
+layout separate from domain design:
 
 ```bo
-files do
+# commerce.bo
+architecture Commerce do
+  import "commerce/commerce.bom"
+  # contexts, objects, interfaces, and relationships...
+end
+```
+
+The `.bom` maps each source file to exactly one context. Entry points are
+explicit mappings too:
+
+```bom
+map Commerce do
   "internal/orders/order.go" -> Orders
   entrypoint "cmd/commerce/main.go" -> App
 end
 ```
 
+Imports are optional, and paths are resolved relative to the importing `.bo`.
 The Go checker requires every Go source file under a declared implementation to
-appear exactly once in this mapping. This keeps generated output owned by one
-architecture node and prevents entry points from being inferred accidentally.
+appear exactly once in the imported map. This keeps generated output owned by
+one architecture node and prevents entry points from being inferred.
 
 Operations have explicit method names and may reference those objects in their
 language-neutral signatures:

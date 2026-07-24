@@ -1,0 +1,7 @@
+map Commerce do
+  "internal/customers/customer.go" -> Customers
+  "internal/orders/order.go" -> Orders
+  "internal/web/checkout.go" -> Web
+  "internal/web/checkout_test.go" -> Web
+  entrypoint "cmd/commerce/main.go" -> App
+end

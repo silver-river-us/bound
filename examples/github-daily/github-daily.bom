@@ -1,0 +1,4 @@
+map GitHubDaily do
+  entrypoint "main.go" -> DailyReporting
+  "main_test.go" -> DailyReporting
+end
