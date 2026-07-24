@@ -2,15 +2,21 @@
 
 Bound is a language-neutral architecture contract language.
 
-It declares contexts, implementation targets, exposed contracts, and allowed relationships. The first implementation validates the model and renders a Structurizr DSL workspace. An implementation target has a language and a locator, so the same architecture can be realized in Go, Rust, Python, TypeScript, or another backend.
+It declares contexts, one architecture-level implementation target, exposed
+contracts, and allowed relationships. The first implementation validates the
+model and renders a Structurizr DSL workspace. An implementation target has a
+language and a root locator, so another architecture can be realized in Go,
+Rust, Python, TypeScript, or another backend without leaking implementation
+paths into its domain model.
 
 ```bo
 """
 The architecture description is attached to the architecture AST node.
 """
 architecture Commerce do
+  implementation go "./"
+
   context Orders do
-    implementation go "./internal/orders"
     interface OrderPort do
       behavior Place(orderID string, amount int) Order
     end
@@ -18,7 +24,6 @@ architecture Commerce do
   end
 
   context Customers do
-    implementation rust "./crates/customers"
     interface CustomerPort do
       behavior Find(customerID string) Customer
     end
@@ -78,6 +83,7 @@ layout separate from domain design:
 ```bo
 # commerce.bo
 architecture Commerce do
+  implementation go "./"
   import "commerce/commerce.go.bom"
   # contexts, objects, interfaces, and relationships...
 end
@@ -94,7 +100,7 @@ end
 ```
 
 Imports are optional, and paths are resolved relative to the importing `.bo`.
-The Go checker requires every Go source file under a declared implementation to
+The Go checker requires every Go source file under the architecture implementation to
 appear exactly once in the imported map. A mapping can target a context or one
 of its exposed interfaces, which lets architecturally significant modules such
 as `GithubActivity` and `DailyReport` own source files. Functions and ordinary
@@ -110,13 +116,16 @@ interface ActivitySource do
 end
 ```
 
-The architecture can declare every module namespace and its implementation
-folder directly in `.bo`. The Go checker requires every mapped file to be
-physically inside the declared module folder:
+The architecture declares its implementation language and source root once.
+Contexts and interfaces remain language-neutral, while the `.bom` map provides
+the precise ownership of each source file:
 
 ```bo
-context DailyReporting do
+architecture GitHubDaily do
   implementation go "./"
+  import "github-daily.go.bom"
+
+context DailyReporting do
   interface GithubActivity do
     behavior activity(organization, timeWindow) returns Activity[]
   end
@@ -127,27 +136,12 @@ context DailyReporting do
   end
   exposes DailyReport
 end
-
-module GithubActivity do
-  implementation go "./daily_reporting/github_activity"
-end
-
-module GithubActivity.GitHub do
-  implementation go "./daily_reporting/github_activity/github"
-end
-
-module DailyReport do
-  implementation go "./daily_reporting/daily_report"
-end
-
-module DailyReport.Command do
-  implementation go "./daily_reporting/daily_report/cmd/github-daily"
 end
 ```
 
-This makes the folder structure part of the architecture contract. A source
-file cannot silently belong to a different module just because it imports the
-right package.
+This keeps folder structure in the source map instead of repeating locators
+throughout the architecture. A source file cannot silently belong to a
+different context just because it imports the right package.
 
 ## Try it
 
@@ -160,7 +154,9 @@ go test ./...
 
 The architecture model is intentionally independent of implementation languages. Future backends will inspect the corresponding source tree and enforce that its imports or module dependencies obey the declared relationships.
 
-The Go backend currently resolves implementation locators relative to the analyzed source root. Standard-library and third-party imports are ignored; cross-context imports must have a declared relationship in the `.bo` model.
+The Go backend resolves the single implementation locator relative to the
+analyzed source root. Standard-library and third-party imports are ignored;
+cross-context imports must have a declared relationship in the `.bo` model.
 
 Interfaces are architecture contracts, not tied to one implementation language. A Go backend can realize them as ordinary Go interfaces, as shown in `examples/commerce/internal/orders/order.go` and `examples/commerce/internal/customers/customer.go`.
 
@@ -195,4 +191,5 @@ github-daily/
 ```
 
 The `.go.bom` maps both namespaces to the `GithubActivity` and `DailyReport`
-modules, so a file cannot drift into an unrelated architectural folder.
+interfaces declared in the `DailyReporting` context, so a file cannot drift
+into an unrelated architectural folder.

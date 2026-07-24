@@ -16,7 +16,7 @@ var (
 	architectureRE   = regexp.MustCompile(`^architecture\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	domainRE         = regexp.MustCompile(`^(entity|value)\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	moduleRE         = regexp.MustCompile(`^module\s+([A-Za-z_][A-Za-z0-9_.]*)\s+do$`)
-	stateRE          = regexp.MustCompile(`^state\s+:([A-Za-z_][A-Za-z0-9_]*)\s+:([A-Za-z_][A-Za-z0-9_\[\]]*)$`)
+	stateRE          = regexp.MustCompile(`^state\s+:([A-Za-z_][A-Za-z0-9_]*)\s+:([A-Za-z_][A-Za-z0-9_.]*(?:\[\])?)$`)
 	importRE         = regexp.MustCompile(`^import\s+"([^"]+)"$`)
 	contextRE        = regexp.MustCompile(`^context\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	implementationRE = regexp.MustCompile(`^implementation\s+([A-Za-z_][A-Za-z0-9_+-]*)\s+"([^"]+)"$`)
@@ -58,7 +58,7 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			pendingDescription = ""
 			continue
 		}
-		if current == nil && currentObject != nil {
+		if currentObject != nil {
 			if line == "end" {
 				currentObject = nil
 				continue
@@ -79,18 +79,24 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 				currentModule = nil
 				continue
 			}
-			if implementationRE.MatchString(line) {
-				match := implementationRE.FindStringSubmatch(line)
-				currentModule.Implementation.Language = match[1]
-				currentModule.Implementation.Locator = match[2]
-				continue
-			}
-			return nil, syntaxError(lineNumber, "expected implementation or end")
+			return nil, syntaxError(lineNumber, "expected end")
 		}
 		if current == nil && line == "end" {
 			return architecture, nil
 		}
 		if current == nil {
+			if architecture.Implementation.Language == "" {
+				match := implementationRE.FindStringSubmatch(line)
+				if match == nil {
+					return nil, syntaxError(lineNumber, "expected architecture implementation")
+				}
+				architecture.Implementation.Language = match[1]
+				architecture.Implementation.Locator = match[2]
+				continue
+			}
+			if match := implementationRE.FindStringSubmatch(line); match != nil {
+				return nil, syntaxError(lineNumber, "duplicate implementation")
+			}
 			if match := importRE.FindStringSubmatch(line); match != nil {
 				architecture.Imports = append(architecture.Imports, match[1])
 				continue
@@ -133,15 +139,18 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 				currentInterface = nil
 				continue
 			}
-			if implementationRE.MatchString(line) {
-				match := implementationRE.FindStringSubmatch(line)
-				currentInterface.Implementation.Language = match[1]
-				currentInterface.Implementation.Locator = match[2]
+			if match := domainRE.FindStringSubmatch(line); match != nil {
+				if _, exists := currentInterface.Types[match[2]]; exists {
+					return nil, syntaxError(lineNumber, "duplicate interface type")
+				}
+				currentObject = &model.Object{Name: match[2], Kind: match[1], Description: pendingDescription, Attributes: map[string]model.Attribute{}}
+				pendingDescription = ""
+				currentInterface.Types[match[2]] = currentObject
 				continue
 			}
 			match := behaviorRE.FindStringSubmatch(line)
 			if match == nil {
-				return nil, syntaxError(lineNumber, "expected behavior or end")
+				return nil, syntaxError(lineNumber, "expected entity, value, behavior, or end")
 			}
 			if _, exists := currentInterface.Operations[match[1]]; exists {
 				return nil, syntaxError(lineNumber, "duplicate behavior")
@@ -155,10 +164,6 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			continue
 		}
 		switch {
-		case implementationRE.MatchString(line):
-			match := implementationRE.FindStringSubmatch(line)
-			current.Implementation.Language = match[1]
-			current.Implementation.Locator = match[2]
 		case exposesRE.MatchString(line):
 			current.Exposes[exposesRE.FindStringSubmatch(line)[1]] = true
 		case interfaceRE.MatchString(line):
@@ -166,11 +171,11 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			if _, exists := current.Interfaces[match[1]]; exists {
 				return nil, syntaxError(lineNumber, "duplicate interface")
 			}
-			currentInterface = &model.Interface{Name: match[1], Description: pendingDescription, Operations: map[string]model.Operation{}}
+			currentInterface = &model.Interface{Name: match[1], Description: pendingDescription, Types: map[string]*model.Object{}, Operations: map[string]model.Operation{}}
 			pendingDescription = ""
 			current.Interfaces[match[1]] = currentInterface
 		default:
-			return nil, syntaxError(lineNumber, "expected implementation, exposes, or end")
+			return nil, syntaxError(lineNumber, "expected interface, exposes, or end")
 		}
 	}
 	if err := scanner.Err(); err != nil {

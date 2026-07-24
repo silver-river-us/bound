@@ -3,17 +3,22 @@ Commerce is a small modular monolith. The composition root wires adapters
 to application-facing ports; domain contexts do not reach into one another.
 """
 architecture Commerce do
+  implementation go "./"
   import "commerce/commerce.go.bom"
 
   """
   Orders owns the lifecycle and invariants of an order.
   """
   context Orders do
-    implementation go "./internal/orders"
     """
     The port is the public contract that other contexts may depend on.
     """
     interface OrderPort do
+      entity Order do
+        state :id :string
+        state :amount :int
+      end
+
       """
       Place creates an order after the caller has authenticated the customer.
       """
@@ -23,19 +28,21 @@ architecture Commerce do
   end
 
   context Customers do
-    implementation go "./internal/customers"
     interface CustomerPort do
+      entity Customer do
+        state :id :string
+        state :email :string
+      end
+
       behavior Find(customerID string) Customer
     end
     exposes CustomerPort
   end
 
   context Web do
-    implementation go "./internal/web"
   end
 
   context App do
-    implementation go "./cmd/commerce"
   end
 
   """

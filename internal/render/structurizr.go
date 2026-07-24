@@ -18,10 +18,6 @@ func Structurizr(a *model.Architecture) string {
 	for _, name := range names {
 		context := a.Contexts[name]
 		description := context.Description
-		if description != "" {
-			description += "\n\n"
-		}
-		description += context.Implementation.Language + ": " + context.Implementation.Locator
 		fmt.Fprintf(&b, "    %s = softwareSystem %q {\n      description %q\n    }\n", name, name, description)
 	}
 	for _, relation := range a.Relations {

@@ -1,19 +1,19 @@
 package model
 
 type Architecture struct {
-	Name        string
-	Description string
-	Contexts    map[string]*Context
-	Objects     map[string]*Object
-	Modules     map[string]*Module
-	Relations   []Relation
-	Files       []FileMapping
-	Imports     []string
+	Name           string
+	Description    string
+	Implementation Implementation
+	Contexts       map[string]*Context
+	Objects        map[string]*Object
+	Modules        map[string]*Module
+	Relations      []Relation
+	Files          []FileMapping
+	Imports        []string
 }
 
 type Module struct {
-	Name           string
-	Implementation Implementation
+	Name string
 }
 
 // FileMapping assigns one implementation source file to one architecture context.
@@ -24,11 +24,10 @@ type FileMapping struct {
 }
 
 type Context struct {
-	Name           string
-	Description    string
-	Implementation Implementation
-	Exposes        map[string]bool
-	Interfaces     map[string]*Interface
+	Name        string
+	Description string
+	Exposes     map[string]bool
+	Interfaces  map[string]*Interface
 }
 
 type Implementation struct {
@@ -44,10 +43,10 @@ type Relation struct {
 }
 
 type Interface struct {
-	Name           string
-	Description    string
-	Implementation Implementation
-	Operations     map[string]Operation
+	Name        string
+	Description string
+	Types       map[string]*Object
+	Operations  map[string]Operation
 }
 
 type Operation struct {

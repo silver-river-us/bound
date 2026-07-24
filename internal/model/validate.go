@@ -10,9 +10,12 @@ func (a *Architecture) Validate() error {
 	if a.Name == "" {
 		return fmt.Errorf("architecture name is required")
 	}
+	if a.Implementation.Language == "" || a.Implementation.Locator == "" {
+		return fmt.Errorf("architecture must declare an implementation")
+	}
 	for name, module := range a.Modules {
-		if module.Name != name || module.Implementation.Language == "" || module.Implementation.Locator == "" {
-			return fmt.Errorf("module %s must declare an implementation", name)
+		if module.Name != name {
+			return fmt.Errorf("architecture has an invalid module")
 		}
 	}
 	files := make(map[string]FileMapping, len(a.Files))
@@ -52,12 +55,14 @@ func (a *Architecture) Validate() error {
 		}
 	}
 	for name, context := range a.Contexts {
-		if context.Implementation.Language == "" || context.Implementation.Locator == "" {
-			return fmt.Errorf("context %s must declare an implementation", name)
-		}
 		for interfaceName, contract := range context.Interfaces {
 			if interfaceName != contract.Name || contract.Name == "" {
 				return fmt.Errorf("context %s has an invalid interface", name)
+			}
+			for typeName, object := range contract.Types {
+				if err := validateObject(typeName, object); err != nil {
+					return fmt.Errorf("interface %s.%s: %w", name, interfaceName, err)
+				}
 			}
 			for operationName, operation := range contract.Operations {
 				if operationName != operation.Name || operation.Name == "" {
@@ -94,6 +99,18 @@ func (a *Architecture) Validate() error {
 	return nil
 }
 
+func validateObject(name string, object *Object) error {
+	if object.Name == "" || object.Name != name || (object.Kind != "entity" && object.Kind != "value") {
+		return fmt.Errorf("invalid domain type")
+	}
+	for attributeName, attribute := range object.Attributes {
+		if attribute.Name == "" || attribute.Name != attributeName || attribute.Type == "" {
+			return fmt.Errorf("domain type %s has an invalid state", name)
+		}
+	}
+	return nil
+}
+
 func (a *Architecture) HasNode(name string) bool {
 	if _, ok := a.Modules[name]; ok {
 		return true
@@ -107,24 +124,6 @@ func (a *Architecture) HasNode(name string) bool {
 		}
 	}
 	return false
-}
-
-func (a *Architecture) ImplementationForNode(name string) (Implementation, bool) {
-	if module, ok := a.Modules[name]; ok {
-		return module.Implementation, true
-	}
-	if context, ok := a.Contexts[name]; ok {
-		return context.Implementation, true
-	}
-	for _, context := range a.Contexts {
-		if contract, ok := context.Interfaces[name]; ok {
-			if contract.Implementation.Language != "" {
-				return contract.Implementation, contract.Implementation.Locator != ""
-			}
-			return context.Implementation, context.Implementation.Language != "" && context.Implementation.Locator != ""
-		}
-	}
-	return Implementation{}, false
 }
 
 func (a *Architecture) Allows(from, to string) bool {

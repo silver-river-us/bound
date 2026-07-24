@@ -20,6 +20,9 @@ type goPackage struct {
 
 // Go checks the import graph reported by go list against the architecture.
 func Go(root string, architecture *model.Architecture) error {
+	if architecture.Implementation.Language != "go" {
+		return fmt.Errorf("architecture implementation must use Go")
+	}
 	if err := validateGoFiles(root, architecture); err != nil {
 		return err
 	}
@@ -44,7 +47,11 @@ func Go(root string, architecture *model.Architecture) error {
 
 	owners := make(map[string]string)
 	for _, pkg := range packages {
-		if context := ownerByDir(pkg.Dir, root, architecture); context != "" {
+		context, err := ownerByDir(pkg.Dir, root, architecture)
+		if err != nil {
+			return err
+		}
+		if context != "" {
 			owners[pkg.ImportPath] = context
 		}
 	}
@@ -71,6 +78,7 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 	}
 	mappings := make(map[string]model.FileMapping, len(architecture.Files))
 	entryPoints := 0
+	implementationRoot := filepath.Join(root, filepath.FromSlash(architecture.Implementation.Locator))
 	for _, mapping := range architecture.Files {
 		if mapping.Node == "" {
 			return fmt.Errorf("file %s has no architecture node", mapping.Path)
@@ -79,8 +87,7 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 			return fmt.Errorf("file %s is mapped more than once", mapping.Path)
 		}
 		context := contextForNode(architecture, mapping.Node)
-		implementation, hasImplementation := architecture.ImplementationForNode(mapping.Node)
-		if context == nil || !hasImplementation || implementation.Language != "go" {
+		if context == nil {
 			return fmt.Errorf("file %s maps to non-Go context %s", mapping.Path, mapping.Node)
 		}
 		absolute := filepath.Join(root, filepath.FromSlash(mapping.Path))
@@ -91,9 +98,8 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 		if info.IsDir() || filepath.Ext(absolute) != ".go" {
 			return fmt.Errorf("mapped file %s must be a Go source file", mapping.Path)
 		}
-		location := locatorForNode(root, architecture, mapping.Node)
-		if !within(absolute, location) {
-			return fmt.Errorf("mapped file %s is outside context %s implementation", mapping.Path, mapping.Node)
+		if !within(absolute, implementationRoot) {
+			return fmt.Errorf("mapped file %s is outside the architecture implementation", mapping.Path)
 		}
 		if mapping.EntryPoint {
 			entryPoints++
@@ -137,53 +143,7 @@ func contextForNode(architecture *model.Architecture, node string) *model.Contex
 			return context
 		}
 	}
-	if _, ok := architecture.Modules[node]; ok {
-		for _, context := range architecture.Contexts {
-			if context.Implementation.Language == "go" {
-				return context
-			}
-		}
-	}
 	return nil
-}
-
-func locatorForNode(root string, architecture *model.Architecture, node string) string {
-	if module, ok := architecture.Modules[node]; ok {
-		return filepath.Join(root, module.Implementation.Locator)
-	}
-	if context, ok := architecture.Contexts[node]; ok {
-		return contextLocator(root, context.Name, context.Implementation.Locator)
-	}
-	for _, context := range architecture.Contexts {
-		if contract, ok := context.Interfaces[node]; ok {
-			if contract.Implementation.Locator != "" {
-				return filepath.Join(root, contract.Implementation.Locator)
-			}
-			return filepath.Join(contextLocator(root, context.Name, context.Implementation.Locator), snakeCase(contract.Name))
-		}
-	}
-	return root
-}
-
-func contextLocator(root, contextName, locator string) string {
-	if filepath.Clean(locator) == "." {
-		return filepath.Join(root, snakeCase(contextName))
-	}
-	return filepath.Join(root, locator)
-}
-
-func snakeCase(value string) string {
-	var result []rune
-	for index, character := range value {
-		if index > 0 && character >= 'A' && character <= 'Z' {
-			result = append(result, '_')
-		}
-		if character >= 'A' && character <= 'Z' {
-			character += 'a' - 'A'
-		}
-		result = append(result, character)
-	}
-	return string(result)
 }
 
 func within(file, directory string) bool {
@@ -195,22 +155,25 @@ func within(file, directory string) bool {
 	return absoluteFile == absoluteDirectory || strings.HasPrefix(absoluteFile, absoluteDirectory+string(filepath.Separator))
 }
 
-func ownerByDir(dir, root string, architecture *model.Architecture) string {
+func ownerByDir(dir, root string, architecture *model.Architecture) (string, error) {
 	absoluteDir, err := filepath.Abs(dir)
 	if err != nil {
-		return ""
+		return "", err
 	}
-	for name, context := range architecture.Contexts {
-		if context.Implementation.Language != "go" {
+	owner := ""
+	for _, mapping := range architecture.Files {
+		mappedDir, err := filepath.Abs(filepath.Join(root, filepath.Dir(filepath.FromSlash(mapping.Path))))
+		if err != nil || mappedDir != absoluteDir {
 			continue
 		}
-		location, err := filepath.Abs(contextLocator(root, context.Name, context.Implementation.Locator))
-		if err != nil {
+		context := contextForNode(architecture, mapping.Node)
+		if context == nil {
 			continue
 		}
-		if absoluteDir == location || strings.HasPrefix(absoluteDir, location+string(filepath.Separator)) {
-			return name
+		if owner != "" && owner != context.Name {
+			return "", fmt.Errorf("Go package %s maps to multiple contexts: %s and %s", dir, owner, context.Name)
 		}
+		owner = context.Name
 	}
-	return ""
+	return owner, nil
 }

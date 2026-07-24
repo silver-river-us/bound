@@ -4,46 +4,39 @@ collects activity through declared ports, and renders a human-facing report.
 The Go program is only one implementation of these contracts.
 """
 architecture GitHubDaily do
+  implementation go "./"
   import "github-daily.go.bom"
 
-  entity Organization do
-    state :login :string
-  end
-
-  value Activity do
-    state :organization :string
-    state :source :string
-    state :type :string
-    state :actor :string
-    state :repository :string
-    state :created_at :timestamp
-    state :summary :string
-    state :url :string
-  end
-
-  value TimeWindow do
-    state :since :timestamp
-    state :until :timestamp
-  end
-
-  value ActivityFeed do
-    state :activities :Activity[]
-    state :warnings :string[]
-  end
-
-  value ReportingSnapshot do
-    state :window :TimeWindow
-    state :organizations :Organization[]
-    state :feed :ActivityFeed
-  end
-
   context DailyReporting do
-    implementation go "./"
-
     """
     Reads the activity sources available to the authenticated GitHub user.
     """
     interface GithubActivity do
+      entity Organization do
+        state :login :string
+      end
+
+      value Activity do
+        state :organization :string
+        state :source :string
+        state :type :string
+        state :actor :string
+        state :repository :string
+        state :created_at :timestamp
+        state :summary :string
+        state :url :string
+      end
+
+      value TimeWindow do
+        state :since :timestamp
+        state :until :timestamp
+      end
+
+      value ActivityFeed do
+        state :activities :Activity[]
+        state :warnings :string[]
+      end
+
       behavior organizations() returns Organization[]
       behavior activities(organization Organization, window TimeWindow) returns ActivityFeed
     end
@@ -53,6 +46,12 @@ architecture GitHubDaily do
     Produces the daily report and its summary.
     """
     interface DailyReport do
+      value ReportingSnapshot do
+        state :window :GithubActivity.TimeWindow
+        state :organizations :GithubActivity.Organization[]
+        state :feed :GithubActivity.ActivityFeed
+      end
+
       behavior render(snapshot ReportingSnapshot) returns string
     end
     exposes DailyReport
