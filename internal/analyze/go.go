@@ -77,7 +77,6 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 		return fmt.Errorf("resolve Go root: %w", err)
 	}
 	mappings := make(map[string]model.FileMapping, len(architecture.Files))
-	entryPoints := 0
 	implementationRoot := filepath.Join(root, filepath.FromSlash(architecture.Implementation.Locator))
 	for _, module := range architecture.Modules {
 		location := moduleLocation(implementationRoot, architecture, module)
@@ -96,9 +95,8 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 		if _, exists := mappings[mapping.Path]; exists {
 			return fmt.Errorf("file %s is mapped more than once", mapping.Path)
 		}
-		context := contextForNode(architecture, mapping.Node)
-		if context == nil {
-			return fmt.Errorf("file %s maps to non-Go context %s", mapping.Path, mapping.Node)
+		if architecture.Modules[mapping.Node] == nil {
+			return fmt.Errorf("file %s maps to non-module %s", mapping.Path, mapping.Node)
 		}
 		absolute := filepath.Join(root, filepath.FromSlash(mapping.Path))
 		info, statErr := os.Stat(absolute)
@@ -130,15 +128,9 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 				}
 			}
 		}
-		if mapping.EntryPoint {
-			entryPoints++
-		}
 		mappings[mapping.Path] = mapping
 	}
-	if entryPoints == 0 {
-		return fmt.Errorf("architecture must declare at least one Go entrypoint")
-	}
-	return filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+	return filepath.WalkDir(implementationRoot, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}

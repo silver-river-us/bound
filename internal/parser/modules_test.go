@@ -3,6 +3,8 @@ package parser
 import (
 	"strings"
 	"testing"
+
+	"github.com/silver-river-us/bound/internal/model"
 )
 
 func TestNestedModulesDeclareContractsDependenciesAndEntrypoints(t *testing.T) {
@@ -49,7 +51,28 @@ end
 	if child := renderer.Modules["Helpers"]; child == nil || child.Parent != renderer.Qualified {
 		t.Fatal("nested helper module has the wrong parent")
 	}
+	architecture.Files = []model.FileMapping{{
+		Path:           "reporting/renderer/cmd/daily-report/main.go",
+		Node:           renderer.Qualified,
+		EntryPoint:     true,
+		EntryPointName: "DailyReport",
+	}}
 	if err := architecture.Validate(); err != nil {
 		t.Fatalf("validate architecture: %v", err)
+	}
+}
+
+func TestModuleDeclarationRejectsQualifiedName(t *testing.T) {
+	_, err := Parse(strings.NewReader(`
+architecture Example do
+  implementation go "./"
+  context Reporting do
+    module Reporting.Activity do
+    end
+  end
+end
+`))
+	if err == nil || !strings.Contains(err.Error(), "expected interface, module, exposes, or end") {
+		t.Fatalf("error = %v, want qualified module declaration rejection", err)
 	}
 }

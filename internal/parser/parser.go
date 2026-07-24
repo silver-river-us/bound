@@ -15,7 +15,7 @@ import (
 var (
 	architectureRE   = regexp.MustCompile(`^architecture\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	domainRE         = regexp.MustCompile(`^(entity|value)\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
-	moduleRE         = regexp.MustCompile(`^module\s+([A-Za-z_][A-Za-z0-9_.]*)\s+do$`)
+	moduleRE         = regexp.MustCompile(`^module\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	implementsRE     = regexp.MustCompile(`^implements\s+([A-Za-z_][A-Za-z0-9_.]*)$`)
 	usesRE           = regexp.MustCompile(`^uses\s+([A-Za-z_][A-Za-z0-9_.]*)$`)
 	entrypointRE     = regexp.MustCompile(`^entrypoint\s+([A-Za-z_][A-Za-z0-9_]*)$`)
@@ -239,6 +239,14 @@ func addModule(architecture *model.Architecture, context *model.Context, parent 
 	}
 	if _, exists := children[name]; exists {
 		return nil, fmt.Errorf("duplicate module")
+	}
+	for sibling := range children {
+		if strings.EqualFold(sibling, name) {
+			return nil, fmt.Errorf("module folder name collides with %s", sibling)
+		}
+	}
+	if _, exists := architecture.Modules[qualified]; exists {
+		return nil, fmt.Errorf("duplicate qualified module %s", qualified)
 	}
 	module := &model.Module{
 		Name:        name,

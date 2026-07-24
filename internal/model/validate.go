@@ -44,11 +44,12 @@ func (a *Architecture) Validate() error {
 		if _, exists := files[file.Path]; exists {
 			return fmt.Errorf("file %s is mapped more than once", file.Path)
 		}
-		if !a.HasNode(file.Node) {
-			return fmt.Errorf("file %s references unknown architecture node %s", file.Path, file.Node)
+		if a.Modules[file.Node] == nil {
+			return fmt.Errorf("file %s must map to a private module, got %s", file.Path, file.Node)
 		}
 		files[file.Path] = file
 	}
+	mappedEntrypoints := map[string]int{}
 	for _, file := range a.Files {
 		if !file.EntryPoint {
 			continue
@@ -60,6 +61,18 @@ func (a *Architecture) Validate() error {
 		module := a.Modules[mapping.Node]
 		if module == nil || !module.Entrypoints[file.EntryPointName] {
 			return fmt.Errorf("entry point %s maps undeclared name %s on module %s", file.Path, file.EntryPointName, file.Node)
+		}
+		key := file.Node + "." + file.EntryPointName
+		mappedEntrypoints[key]++
+		if mappedEntrypoints[key] > 1 {
+			return fmt.Errorf("entry point %s on module %s is mapped more than once", file.EntryPointName, file.Node)
+		}
+	}
+	for name, module := range a.Modules {
+		for entrypoint := range module.Entrypoints {
+			if mappedEntrypoints[name+"."+entrypoint] != 1 {
+				return fmt.Errorf("entry point %s on module %s must have exactly one source mapping", entrypoint, name)
+			}
 		}
 	}
 	for name, object := range a.Objects {
@@ -135,11 +148,15 @@ func (a *Architecture) validModuleDependency(module *Module, dependency string) 
 	parts := strings.Split(dependency, ".")
 	if len(parts) == 2 {
 		if context := a.Contexts[parts[0]]; context != nil && context.Exposes[parts[1]] {
-			return true
+			return a.hasRelation(module.Context, parts[0], parts[1])
 		}
 	}
-	for _, context := range a.Contexts {
-		if context.Exposes[dependency] {
+	return false
+}
+
+func (a *Architecture) hasRelation(from, to, via string) bool {
+	for _, relation := range a.Relations {
+		if relation.From == from && relation.To == to && relation.Via == via {
 			return true
 		}
 	}

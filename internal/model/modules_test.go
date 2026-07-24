@@ -50,3 +50,20 @@ func TestModuleAllowsDeclaredInterfaceAndPrivateModuleDependencies(t *testing.T)
 		t.Fatal("undeclared module dependency was allowed")
 	}
 }
+
+func TestValidationRejectsSourceMappingWithoutPrivateModule(t *testing.T) {
+	architecture := &Architecture{
+		Name:           "Example",
+		Implementation: Implementation{Language: "go", Locator: "./"},
+		Contexts: map[string]*Context{
+			"Reporting": {Name: "Reporting", Exposes: map[string]bool{}, Interfaces: map[string]*Interface{}},
+		},
+		Modules: map[string]*Module{},
+		Objects: map[string]*Object{},
+		Files:   []FileMapping{{Path: "report.go", Node: "Reporting"}},
+	}
+
+	if err := architecture.Validate(); err == nil {
+		t.Fatal("context source mapping was accepted")
+	}
+}
