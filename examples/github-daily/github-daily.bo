@@ -4,7 +4,7 @@ collects activity through declared ports, and renders a human-facing report.
 The Go program is only one implementation of these contracts.
 """
 architecture GitHubDaily do
-  import "github-daily.bom"
+  import "github-daily.go.bom"
 
   object Organization do
     attribute :login :string

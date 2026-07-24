@@ -46,21 +46,21 @@ Attributes use Ruby-like symbols for both the field name and its language-neutra
 type: `attribute :name :type`.
 
 The architecture declaration stays in a `.bo` file. Source ownership is kept in
-a separate `.bom` map imported by the architecture; this keeps implementation
+a separate language-qualified `.go.bom` map imported by the architecture; this keeps implementation
 layout separate from domain design:
 
 ```bo
 # commerce.bo
 architecture Commerce do
-  import "commerce/commerce.bom"
+  import "commerce/commerce.go.bom"
   # contexts, objects, interfaces, and relationships...
 end
 ```
 
-The `.bom` maps each source file to exactly one context. Entry points are
+The `.go.bom` maps each Go source file to exactly one context. Entry points are
 explicit mappings too:
 
-```bom
+```go.bom
 map Commerce do
   "internal/orders/order.go" -> Orders
   entrypoint "cmd/commerce/main.go" -> App

@@ -3,7 +3,7 @@ Commerce is a small modular monolith. The composition root wires adapters
 to application-facing ports; domain contexts do not reach into one another.
 """
 architecture Commerce do
-  import "commerce/commerce.bom"
+  import "commerce/commerce.go.bom"
 
   """
   Orders owns the lifecycle and invariants of an order.
