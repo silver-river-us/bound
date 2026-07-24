@@ -12,7 +12,7 @@ architecture Commerce do
   context Orders do
     implementation go "./internal/orders"
     interface OrderPort do
-      operation Place(orderID string, amount int) Order
+      behavior Place(orderID string, amount int) Order
     end
     exposes OrderPort
   end
@@ -20,7 +20,7 @@ architecture Commerce do
   context Customers do
     implementation rust "./crates/customers"
     interface CustomerPort do
-      operation Find(customerID string) Customer
+      behavior Find(customerID string) Customer
     end
     exposes CustomerPort
   end
@@ -30,20 +30,46 @@ end
 ```
 
 Triple-quoted blocks are documentation nodes. A block immediately before an
-architecture, context, interface, operation, or relationship is stored on that
+architecture, context, interface, behavior, or relationship is stored on that
 AST node and can be rendered by future documentation backends.
 
-Domain objects and their attributes are declared explicitly:
+## DDD vocabulary
+
+Bound uses DDD-oriented terms for domain design:
+
+- `entity` represents something with identity and a lifecycle. Two entities
+  with equal state may still be different entities.
+- `value` represents something defined entirely by its contents. Equal values
+  are interchangeable and are generally immutable or replaced as a whole.
+- `state` declares the data that makes up an entity or value. In DDD, state is
+  the collection of attributes; `state` is the architectural keyword in Bound.
+- `behavior` declares what an interface or module can do. It is intentionally
+  neutral between commands, queries, and language-specific functions.
+
+Use `entity` when identity, ownership, lifecycle, or invariants matter. Use
+`value` for concepts such as time windows, addresses, measurements, and other
+descriptive data. The distinction affects equality, mutation, persistence, and
+aggregate boundaries; it is not a claim about the eventual implementation
+type.
 
 ```bo
-object Activity do
-  attribute :repository :string
-  attribute :occurred_at :timestamp
+entity Organization do
+  state :login :string
+end
+
+value TimeWindow do
+  state :since :timestamp
+  state :until :timestamp
 end
 ```
 
-Attributes use Ruby-like symbols for both the field name and its language-neutral
-type: `attribute :name :type`.
+An entity or value can expose behaviors through an interface:
+
+```bo
+interface ActivitySource do
+  behavior activity(organization, timeWindow) returns Activity[]
+end
+```
 
 The architecture declaration stays in a `.bo` file. Source ownership is kept in
 a separate language-qualified `.go.bom` map imported by the architecture; this keeps implementation
@@ -57,8 +83,8 @@ architecture Commerce do
 end
 ```
 
-The `.go.bom` maps each Go source file to exactly one context. Entry points are
-explicit mappings too:
+The `.go.bom` maps each Go source file to exactly one context or exposed module.
+Entry points are explicit mappings too:
 
 ```go.bom
 map Commerce do
@@ -75,14 +101,34 @@ as `GithubActivity` and `DailyReport` own source files. Functions and ordinary
 language declarations may coexist in a mapped file; the architectural unit is
 the mapping target, not an individual Go function.
 
-Operations have explicit method names and may reference those objects in their
-language-neutral signatures:
+Behaviors have explicit method names and may reference entities and values in
+their language-neutral signatures:
 
 ```bo
 interface ActivitySource do
-  operation activity(organization, timeWindow) returns Activity[]
+  behavior activity(organization, timeWindow) returns Activity[]
 end
 ```
+
+An interface can also declare the implementation folder for an architectural
+module. The Go checker requires every mapped file to be physically inside that
+folder:
+
+```bo
+interface GithubActivity do
+  implementation go "./github_activity"
+  behavior activity(organization, timeWindow) returns Activity[]
+end
+
+interface DailyReport do
+  implementation go "./daily_report"
+  behavior render(organizations, activities, warnings)
+end
+```
+
+This makes the folder structure part of the architecture contract. A source
+file cannot silently belong to a different module just because it imports the
+right package.
 
 ## Try it
 

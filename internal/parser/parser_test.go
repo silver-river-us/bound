@@ -17,14 +17,14 @@ architecture Commerce do
   context Orders do
     implementation go "./internal/orders"
     interface OrderPort do
-      operation Place(orderID string, amount int) Order
+      behavior Place(orderID string, amount int) Order
     end
     exposes OrderPort
   end
 	  context Customers do
     implementation rust "./crates/customers"
     interface CustomerPort do
-      operation Find(customerID string) Customer
+      behavior Find(customerID string) Customer
     end
     exposes CustomerPort
 	  end

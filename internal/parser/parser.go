@@ -21,7 +21,7 @@ var (
 	implementationRE = regexp.MustCompile(`^implementation\s+([A-Za-z_][A-Za-z0-9_+-]*)\s+"([^"]+)"$`)
 	exposesRE        = regexp.MustCompile(`^exposes\s+([A-Za-z_][A-Za-z0-9_]*)$`)
 	interfaceRE      = regexp.MustCompile(`^interface\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
-	operationRE      = regexp.MustCompile(`^operation\s+([A-Za-z_][A-Za-z0-9_]*)(.*)$`)
+	behaviorRE       = regexp.MustCompile(`^behavior\s+([A-Za-z_][A-Za-z0-9_]*)(.*)$`)
 	relationRE       = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)\s*->\s*([A-Za-z_][A-Za-z0-9_]*)(?:\s+via\s+([A-Za-z_][A-Za-z0-9_]*))?$`)
 )
 
@@ -116,12 +116,12 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 				currentInterface.Implementation.Locator = match[2]
 				continue
 			}
-			match := operationRE.FindStringSubmatch(line)
+			match := behaviorRE.FindStringSubmatch(line)
 			if match == nil {
-				return nil, syntaxError(lineNumber, "expected operation or end")
+				return nil, syntaxError(lineNumber, "expected behavior or end")
 			}
 			if _, exists := currentInterface.Operations[match[1]]; exists {
-				return nil, syntaxError(lineNumber, "duplicate operation")
+				return nil, syntaxError(lineNumber, "duplicate behavior")
 			}
 			currentInterface.Operations[match[1]] = model.Operation{Name: match[1], Signature: strings.TrimSpace(match[2]), Description: pendingDescription}
 			pendingDescription = ""

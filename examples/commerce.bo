@@ -17,7 +17,7 @@ architecture Commerce do
       """
       Place creates an order after the caller has authenticated the customer.
       """
-      operation Place(orderID string, amount int) Order
+      behavior Place(orderID string, amount int) Order
     end
     exposes OrderPort
   end
@@ -25,7 +25,7 @@ architecture Commerce do
   context Customers do
     implementation go "./internal/customers"
     interface CustomerPort do
-      operation Find(customerID string) Customer
+      behavior Find(customerID string) Customer
     end
     exposes CustomerPort
   end
