@@ -10,9 +10,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/silver-river-us/bound/examples/github-daily/daily_reporting/activity"
-	githubapi "github.com/silver-river-us/bound/examples/github-daily/daily_reporting/activity/github"
-	"github.com/silver-river-us/bound/examples/github-daily/daily_reporting/daily_report"
+	"github.com/silver-river-us/bound/examples/github-daily/reporting/activity"
+	githubapi "github.com/silver-river-us/bound/examples/github-daily/reporting/activity/github"
+	"github.com/silver-river-us/bound/examples/github-daily/reporting/daily_report"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package githubapi
 import (
 	"fmt"
 
-	"github.com/silver-river-us/bound/examples/github-daily/daily_reporting/activity"
+	"github.com/silver-river-us/bound/examples/github-daily/reporting/activity"
 )
 
 func (c *Client) Organizations() ([]githubactivity.Organization, error) {

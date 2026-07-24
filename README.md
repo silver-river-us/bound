@@ -122,13 +122,13 @@ architecture GitHubDaily do
   implementation go "./"
   import "github-daily.go.bom"
 
-  context DailyReporting do
+  context Reporting do
     interface GithubActivity do
       behavior organizations() returns Organization[]
     end
     exposes GithubActivity
 
-    module DailyReporting do
+    module Reporting do
       module Activity do
         implements GithubActivity
 
@@ -147,7 +147,7 @@ end
 ```
 
 Module names conventionally produce snake-case folders, so the example declares
-`daily_reporting/activity/github` without embedding paths in the DSL.
+`reporting/activity/github` without embedding paths in the DSL.
 `implements` binds private code to a public contract, while `uses` permits a
 dependency on an interface or another private module. Nested source folders
 must have matching nested module declarations. The Go backend conventionally
@@ -177,8 +177,8 @@ Interfaces are architecture contracts, not tied to one implementation language. 
 The `examples/github-daily` program is declared by [`github-daily.bo`](examples/github-daily/github-daily.bo). It discovers all organizations visible to the authenticated GitHub user, reads each organization's activity sources for the last 24 hours, and writes a Markdown report. The program validates that `.bo` architecture before it runs.
 
 ```sh
-go run ./examples/github-daily/daily_reporting/daily_report/cmd/github-daily
-go run ./examples/github-daily/daily_reporting/daily_report/cmd/github-daily -since 48h -output -
+go run ./examples/github-daily/reporting/daily_report/cmd/github-daily
+go run ./examples/github-daily/reporting/daily_report/cmd/github-daily -since 48h -output -
 ```
 
 Authentication uses `GITHUB_TOKEN` when set, otherwise the token from `gh auth token`. Reports are written to `reports/github-activity-YYYY-MM-DD.md` by default.
@@ -193,7 +193,7 @@ The implementation namespace follows the architecture:
 
 ```text
 github-daily/
-└── daily_reporting/
+└── reporting/
     ├── activity/
     │   ├── *.go      # organizations, events, activities, search results
     │   └── github/   # GitHub API client and activity sources

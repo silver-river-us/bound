@@ -7,7 +7,7 @@ architecture GitHubDaily do
   implementation go "./"
   import "github-daily.go.bom"
 
-  context DailyReporting do
+  context Reporting do
     """
     Reads the activity sources available to the authenticated GitHub user.
     """
@@ -56,7 +56,7 @@ architecture GitHubDaily do
     end
     exposes DailyReport
 
-    module DailyReporting do
+    module Reporting do
       module Activity do
         implements GithubActivity
 

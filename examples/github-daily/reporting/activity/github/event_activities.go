@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/silver-river-us/bound/examples/github-daily/daily_reporting/activity"
+	"github.com/silver-river-us/bound/examples/github-daily/reporting/activity"
 )
 
 func (c *Client) eventActivities(org string, since time.Time) ([]githubactivity.Activity, error) {
