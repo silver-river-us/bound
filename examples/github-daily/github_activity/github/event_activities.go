@@ -1,16 +1,18 @@
-package githubactivity
+package githubapi
 
 import (
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/silver-river-us/bound/examples/github-daily/github_activity"
 )
 
-func (c *Client) eventActivities(org string, since time.Time) ([]Activity, error) {
-	activities := make([]Activity, 0)
+func (c *Client) eventActivities(org string, since time.Time) ([]githubactivity.Activity, error) {
+	activities := make([]githubactivity.Activity, 0)
 	for page := 1; page <= 10; page++ {
-		var events []event
+		var events []githubactivity.Event
 		path := fmt.Sprintf("/orgs/%s/events?per_page=100&page=%d", url.PathEscape(org), page)
 		if err := c.get(path, &events); err != nil {
 			return nil, err
@@ -22,7 +24,7 @@ func (c *Client) eventActivities(org string, since time.Time) ([]Activity, error
 			if item.CreatedAt.Before(since) {
 				return activities, nil
 			}
-			activities = append(activities, Activity{
+			activities = append(activities, githubactivity.Activity{
 				Organization: org,
 				Source:       "events",
 				Type:         strings.TrimSuffix(item.Type, "Event"),

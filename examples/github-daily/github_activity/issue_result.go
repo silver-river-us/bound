@@ -2,7 +2,7 @@ package githubactivity
 
 import "time"
 
-type issueResult struct {
+type IssueResult struct {
 	Title         string    `json:"title"`
 	HTMLURL       string    `json:"html_url"`
 	UpdatedAt     time.Time `json:"updated_at"`

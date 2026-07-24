@@ -10,9 +10,9 @@ func TestParseBoundDocument(t *testing.T) {
 Architecture documentation.
 """
 architecture Commerce do
-  object Customer do
-    attribute :id :string
-    attribute :email :string
+  entity Customer do
+    state :id :string
+    state :email :string
   end
   context Orders do
     implementation go "./internal/orders"
@@ -46,7 +46,7 @@ end`))
 		t.Fatalf("unexpected architecture description: %q", a.Description)
 	}
 	if a.Objects["Customer"].Attributes["email"].Type != "string" {
-		t.Fatal("expected typed Customer.email attribute")
+		t.Fatal("expected typed Customer.email state")
 	}
 	if a.Contexts["Customers"].Implementation.Language != "rust" {
 		t.Fatal("expected Rust implementation")
@@ -66,13 +66,13 @@ end`))
 	}
 }
 
-func TestParseRejectsNonSymbolAttributeSyntax(t *testing.T) {
+func TestParseRejectsLegacyObjectSyntax(t *testing.T) {
 	_, err := Parse(strings.NewReader(`architecture Example do
   object Customer do
     attribute email: string
   end
 end`))
 	if err == nil {
-		t.Fatal("expected legacy attribute syntax to be rejected")
+		t.Fatal("expected legacy object syntax to be rejected")
 	}
 }

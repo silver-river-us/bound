@@ -10,6 +10,11 @@ func (a *Architecture) Validate() error {
 	if a.Name == "" {
 		return fmt.Errorf("architecture name is required")
 	}
+	for name, module := range a.Modules {
+		if module.Name != name || module.Implementation.Language == "" || module.Implementation.Locator == "" {
+			return fmt.Errorf("module %s must declare an implementation", name)
+		}
+	}
 	files := make(map[string]FileMapping, len(a.Files))
 	for _, file := range a.Files {
 		clean := filepath.ToSlash(filepath.Clean(file.Path))
@@ -37,12 +42,12 @@ func (a *Architecture) Validate() error {
 		}
 	}
 	for name, object := range a.Objects {
-		if object.Name == "" || object.Name != name {
-			return fmt.Errorf("architecture has an invalid object")
+		if object.Name == "" || object.Name != name || (object.Kind != "entity" && object.Kind != "value") {
+			return fmt.Errorf("architecture has an invalid domain type")
 		}
 		for attributeName, attribute := range object.Attributes {
 			if attribute.Name == "" || attribute.Name != attributeName || attribute.Type == "" {
-				return fmt.Errorf("object %s has an invalid attribute", name)
+				return fmt.Errorf("domain type %s has an invalid state", name)
 			}
 		}
 	}
@@ -90,6 +95,9 @@ func (a *Architecture) Validate() error {
 }
 
 func (a *Architecture) HasNode(name string) bool {
+	if _, ok := a.Modules[name]; ok {
+		return true
+	}
 	if _, ok := a.Contexts[name]; ok {
 		return true
 	}
@@ -102,6 +110,9 @@ func (a *Architecture) HasNode(name string) bool {
 }
 
 func (a *Architecture) ImplementationForNode(name string) (Implementation, bool) {
+	if module, ok := a.Modules[name]; ok {
+		return module.Implementation, true
+	}
 	if context, ok := a.Contexts[name]; ok {
 		return context.Implementation, true
 	}

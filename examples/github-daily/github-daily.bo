@@ -6,15 +6,31 @@ The Go program is only one implementation of these contracts.
 architecture GitHubDaily do
   import "github-daily.go.bom"
 
-  object Organization do
-    attribute :login :string
+  module GithubActivity do
+    implementation go "./github_activity"
   end
 
-  object Activity do
-    attribute :source :string
-    attribute :actor :string
-    attribute :repository :string
-    attribute :occurred_at :timestamp
+  module GithubActivity.GitHub do
+    implementation go "./github_activity/github"
+  end
+
+  module DailyReport do
+    implementation go "./daily_report"
+  end
+
+  module DailyReport.Command do
+    implementation go "./daily_report/cmd/github-daily"
+  end
+
+  entity Organization do
+    state :login :string
+  end
+
+  value Activity do
+    state :source :string
+    state :actor :string
+    state :repository :string
+    state :occurred_at :timestamp
   end
 
   context DailyReporting do
@@ -24,7 +40,6 @@ architecture GitHubDaily do
     Reads the activity sources available to the authenticated GitHub user.
     """
     interface GithubActivity do
-      implementation go "./github_activity"
       behavior organizations() returns Organization[]
       behavior activity(organization, timeWindow) returns Activity[]
     end
@@ -34,7 +49,6 @@ architecture GitHubDaily do
     Produces the daily report and its summary.
     """
     interface DailyReport do
-      implementation go "./daily_report"
       behavior render(organizations, activities, warnings)
     end
     exposes DailyReport

@@ -2,7 +2,7 @@ package githubactivity
 
 import "time"
 
-type commitResult struct {
+type CommitResult struct {
 	HTMLURL string `json:"html_url"`
 	Author  struct {
 		Login string `json:"login"`

@@ -110,19 +110,25 @@ interface ActivitySource do
 end
 ```
 
-An interface can also declare the implementation folder for an architectural
-module. The Go checker requires every mapped file to be physically inside that
-folder:
+The architecture can declare module namespaces and their implementation folders
+directly in `.bo`. The Go checker requires every mapped file to be physically
+inside the declared module folder:
 
 ```bo
-interface GithubActivity do
+module GithubActivity do
   implementation go "./github_activity"
-  behavior activity(organization, timeWindow) returns Activity[]
 end
 
-interface DailyReport do
+module GithubActivity.GitHub do
+  implementation go "./github_activity/github"
+end
+
+module DailyReport do
   implementation go "./daily_report"
-  behavior render(organizations, activities, warnings)
+end
+
+module DailyReport.Command do
+  implementation go "./daily_report/cmd/github-daily"
 end
 ```
 
@@ -161,3 +167,18 @@ and issue/pull-request search. The latter represents an updated issue or pull
 request, not every individual comment or review actor. GitHub audit-log access
 is organization-admin scoped, so the program reports everything available to
 the authenticated token rather than claiming universal private-audit coverage.
+
+The implementation namespace follows the architecture:
+
+```text
+github-daily/
+├── github_activity/
+│   ├── *.go          # organizations, events, activities, search results
+│   └── github/       # GitHub API client and activity sources
+└── daily_report/
+    ├── report.go     # report behavior
+    └── cmd/           # explicit entry point
+```
+
+The `.go.bom` maps both namespaces to the `GithubActivity` and `DailyReport`
+modules, so a file cannot drift into an unrelated architectural folder.

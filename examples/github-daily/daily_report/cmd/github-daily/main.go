@@ -12,13 +12,14 @@ import (
 
 	"github.com/silver-river-us/bound/examples/github-daily/daily_report"
 	"github.com/silver-river-us/bound/examples/github-daily/github_activity"
+	githubapi "github.com/silver-river-us/bound/examples/github-daily/github_activity/github"
 )
 
 func main() {
 	defaultOutput := filepath.Join("reports", "github-activity-"+time.Now().UTC().Format("2006-01-02")+".md")
 	sinceFlag := flag.Duration("since", 24*time.Hour, "report window, for example 24h or 48h")
 	outputFlag := flag.String("output", defaultOutput, "Markdown report path; use - for stdout")
-	baseURLFlag := flag.String("base-url", githubactivity.GithubAPI, "GitHub API base URL")
+	baseURLFlag := flag.String("base-url", githubapi.GithubAPI, "GitHub API base URL")
 	architectureFlag := flag.String("architecture", filepath.Join("examples", "github-daily", "github-daily.bo"), "Bound architecture file")
 	sourceRootFlag := flag.String("source-root", "examples/github-daily", "source root checked by Bound")
 	flag.Parse()
@@ -26,11 +27,11 @@ func main() {
 		fatal(err)
 	}
 
-	token, err := githubactivity.AuthToken()
+	token, err := githubapi.AuthToken()
 	if err != nil {
 		fatal(err)
 	}
-	c := githubactivity.NewClient(*baseURLFlag, token)
+	c := githubapi.NewClient(*baseURLFlag, token)
 	since := time.Now().UTC().Add(-*sinceFlag)
 	orgs, err := c.Organizations()
 	if err != nil {

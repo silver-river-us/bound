@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type event struct {
+type Event struct {
 	Type  string `json:"type"`
 	Actor struct {
 		Login string `json:"login"`

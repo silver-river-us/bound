@@ -137,6 +137,13 @@ func contextForNode(architecture *model.Architecture, node string) *model.Contex
 			return context
 		}
 	}
+	if _, ok := architecture.Modules[node]; ok {
+		for _, context := range architecture.Contexts {
+			if context.Implementation.Language == "go" {
+				return context
+			}
+		}
+	}
 	return nil
 }
 

@@ -1,12 +1,14 @@
-package githubactivity
+package githubapi
 
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/silver-river-us/bound/examples/github-daily/github_activity"
 )
 
-func summarize(item event) string {
+func summarize(item githubactivity.Event) string {
 	var payload map[string]any
 	if json.Unmarshal(item.Payload, &payload) != nil {
 		return item.Type

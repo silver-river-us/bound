@@ -1,12 +1,14 @@
-package githubactivity
+package githubapi
 
 import (
 	"fmt"
 	"time"
+
+	"github.com/silver-river-us/bound/examples/github-daily/github_activity"
 )
 
-func (c *Client) Activities(org string, since, until time.Time) ([]Activity, []string) {
-	activities := make([]Activity, 0)
+func (c *Client) Activities(org string, since, until time.Time) ([]githubactivity.Activity, []string) {
+	activities := make([]githubactivity.Activity, 0)
 	warnings := make([]string, 0)
 	events, err := c.eventActivities(org, since)
 	if err != nil {

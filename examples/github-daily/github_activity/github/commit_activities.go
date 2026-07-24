@@ -1,19 +1,21 @@
-package githubactivity
+package githubapi
 
 import (
 	"fmt"
 	"net/url"
 	"time"
+
+	"github.com/silver-river-us/bound/examples/github-daily/github_activity"
 )
 
-func (c *Client) commitActivities(org string, since, until time.Time) ([]Activity, error) {
-	activities := make([]Activity, 0)
+func (c *Client) commitActivities(org string, since, until time.Time) ([]githubactivity.Activity, error) {
+	activities := make([]githubactivity.Activity, 0)
 	for page := 1; page <= 10; page++ {
 		query := url.Values{}
 		query.Set("q", fmt.Sprintf("org:%s committer-date:%s..%s", org, since.Format(time.RFC3339), until.Format(time.RFC3339)))
 		query.Set("per_page", "100")
 		query.Set("page", fmt.Sprint(page))
-		var result searchResponse[commitResult]
+		var result githubactivity.SearchResponse[githubactivity.CommitResult]
 		if err := c.get("/search/commits?"+query.Encode(), &result); err != nil {
 			return nil, err
 		}
@@ -32,7 +34,7 @@ func (c *Client) commitActivities(org string, since, until time.Time) ([]Activit
 			if actor == "" {
 				actor = item.Commit.Author.Name
 			}
-			activities = append(activities, Activity{
+			activities = append(activities, githubactivity.Activity{
 				Organization: org,
 				Source:       "commits",
 				Type:         "Commit",

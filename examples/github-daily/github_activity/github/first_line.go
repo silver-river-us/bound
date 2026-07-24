@@ -1,4 +1,4 @@
-package githubactivity
+package githubapi
 
 import "strings"
 

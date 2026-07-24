@@ -5,9 +5,15 @@ type Architecture struct {
 	Description string
 	Contexts    map[string]*Context
 	Objects     map[string]*Object
+	Modules     map[string]*Module
 	Relations   []Relation
 	Files       []FileMapping
 	Imports     []string
+}
+
+type Module struct {
+	Name           string
+	Implementation Implementation
 }
 
 // FileMapping assigns one implementation source file to one architecture context.
@@ -52,6 +58,7 @@ type Operation struct {
 
 type Object struct {
 	Name        string
+	Kind        string
 	Description string
 	Attributes  map[string]Attribute
 }
