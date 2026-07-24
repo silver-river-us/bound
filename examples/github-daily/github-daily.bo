@@ -6,22 +6,6 @@ The Go program is only one implementation of these contracts.
 architecture GitHubDaily do
   import "github-daily.go.bom"
 
-  module GithubActivity do
-    implementation go "./daily_reporting/github_activity"
-  end
-
-  module GithubActivity.GitHub do
-    implementation go "./daily_reporting/github_activity/github"
-  end
-
-  module DailyReport do
-    implementation go "./daily_reporting/daily_report"
-  end
-
-  module DailyReport.Command do
-    implementation go "./daily_reporting/daily_report/cmd/github-daily"
-  end
-
   entity Organization do
     state :login :string
   end
