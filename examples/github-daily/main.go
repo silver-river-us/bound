@@ -346,9 +346,11 @@ func renderReport(since, until time.Time, orgs []organization, activities []acti
 	fmt.Fprintf(&b, "Organizations discovered: **%d**  \nActivities collected: **%d**\n\n", len(orgs), len(activities))
 	byOrg := map[string][]activity{}
 	bySource := map[string]int{}
+	byActor := map[string]int{}
 	for _, item := range activities {
 		byOrg[item.Organization] = append(byOrg[item.Organization], item)
 		bySource[item.Source]++
+		byActor[item.Actor]++
 	}
 	activeOrganizations := 0
 	for _, org := range orgs {
@@ -366,6 +368,20 @@ func renderReport(since, until time.Time, orgs []organization, activities []acti
 	sort.Strings(sources)
 	for _, source := range sources {
 		fmt.Fprintf(&b, "- **%s:** %d\n", source, bySource[source])
+	}
+	actors := make([]string, 0, len(byActor))
+	for actor := range byActor {
+		actors = append(actors, actor)
+	}
+	sort.Slice(actors, func(i, j int) bool {
+		if byActor[actors[i]] == byActor[actors[j]] {
+			return actors[i] < actors[j]
+		}
+		return byActor[actors[i]] > byActor[actors[j]]
+	})
+	b.WriteString("\n### By user\n\n| User | Activities |\n|---|---:|\n")
+	for _, actor := range actors {
+		fmt.Fprintf(&b, "| %s | %d |\n", actor, byActor[actor])
 	}
 	b.WriteString("\n### By organization\n\n| Organization | Activities |\n|---|---:|\n")
 	for _, org := range orgs {
