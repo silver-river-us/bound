@@ -4,6 +4,7 @@ type Architecture struct {
 	Name        string
 	Description string
 	Contexts    map[string]*Context
+	Objects     map[string]*Object
 	Relations   []Relation
 }
 
@@ -36,5 +37,17 @@ type Interface struct {
 type Operation struct {
 	Name        string
 	Signature   string
+	Description string
+}
+
+type Object struct {
+	Name        string
+	Description string
+	Attributes  map[string]Attribute
+}
+
+type Attribute struct {
+	Name        string
+	Type        string
 	Description string
 }

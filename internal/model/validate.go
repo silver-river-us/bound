@@ -6,6 +6,16 @@ func (a *Architecture) Validate() error {
 	if a.Name == "" {
 		return fmt.Errorf("architecture name is required")
 	}
+	for name, object := range a.Objects {
+		if object.Name == "" || object.Name != name {
+			return fmt.Errorf("architecture has an invalid object")
+		}
+		for attributeName, attribute := range object.Attributes {
+			if attribute.Name == "" || attribute.Name != attributeName || attribute.Type == "" {
+				return fmt.Errorf("object %s has an invalid attribute", name)
+			}
+		}
+	}
 	for name, context := range a.Contexts {
 		if context.Implementation.Language == "" || context.Implementation.Locator == "" {
 			return fmt.Errorf("context %s must declare an implementation", name)

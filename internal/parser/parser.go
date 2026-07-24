@@ -11,6 +11,8 @@ import (
 
 var (
 	architectureRE   = regexp.MustCompile(`^architecture\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
+	objectRE         = regexp.MustCompile(`^object\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
+	attributeRE      = regexp.MustCompile(`^attribute\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^\s]+)$`)
 	contextRE        = regexp.MustCompile(`^context\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	implementationRE = regexp.MustCompile(`^implementation\s+([A-Za-z_][A-Za-z0-9_+-]*)\s+"([^"]+)"$`)
 	exposesRE        = regexp.MustCompile(`^exposes\s+([A-Za-z_][A-Za-z0-9_]*)$`)
@@ -24,6 +26,7 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 	var architecture *model.Architecture
 	var current *model.Context
 	var currentInterface *model.Interface
+	var currentObject *model.Object
 	pendingDescription := ""
 	lineNumber := 0
 	for scanner.Scan() {
@@ -45,7 +48,23 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			if match == nil {
 				return nil, syntaxError(lineNumber, "expected architecture declaration")
 			}
-			architecture = &model.Architecture{Name: match[1], Description: pendingDescription, Contexts: map[string]*model.Context{}}
+			architecture = &model.Architecture{Name: match[1], Description: pendingDescription, Contexts: map[string]*model.Context{}, Objects: map[string]*model.Object{}}
+			pendingDescription = ""
+			continue
+		}
+		if current == nil && currentObject != nil {
+			if line == "end" {
+				currentObject = nil
+				continue
+			}
+			match := attributeRE.FindStringSubmatch(line)
+			if match == nil {
+				return nil, syntaxError(lineNumber, "expected attribute or end")
+			}
+			if _, exists := currentObject.Attributes[match[1]]; exists {
+				return nil, syntaxError(lineNumber, "duplicate attribute")
+			}
+			currentObject.Attributes[match[1]] = model.Attribute{Name: match[1], Type: match[2], Description: pendingDescription}
 			pendingDescription = ""
 			continue
 		}
@@ -53,6 +72,15 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			return architecture, nil
 		}
 		if current == nil {
+			if match := objectRE.FindStringSubmatch(line); match != nil {
+				if _, exists := architecture.Objects[match[1]]; exists {
+					return nil, syntaxError(lineNumber, "duplicate object")
+				}
+				currentObject = &model.Object{Name: match[1], Description: pendingDescription, Attributes: map[string]model.Attribute{}}
+				pendingDescription = ""
+				architecture.Objects[match[1]] = currentObject
+				continue
+			}
 			if match := contextRE.FindStringSubmatch(line); match != nil {
 				if _, exists := architecture.Contexts[match[1]]; exists {
 					return nil, syntaxError(lineNumber, "duplicate context")
@@ -113,6 +141,9 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 	}
 	if architecture == nil {
 		return nil, fmt.Errorf("empty Bound document")
+	}
+	if currentObject != nil {
+		return nil, fmt.Errorf("line %d: unclosed object %s", lineNumber, currentObject.Name)
 	}
 	if current != nil {
 		if currentInterface != nil {

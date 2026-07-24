@@ -10,6 +10,10 @@ func TestParseBoundDocument(t *testing.T) {
 Architecture documentation.
 """
 architecture Commerce do
+  object Customer do
+    attribute id: string
+    attribute email: string
+  end
   context Orders do
     implementation go "./internal/orders"
     interface OrderPort do
@@ -40,6 +44,9 @@ end`))
 	}
 	if a.Description != "Architecture documentation." {
 		t.Fatalf("unexpected architecture description: %q", a.Description)
+	}
+	if a.Objects["Customer"].Attributes["email"].Type != "string" {
+		t.Fatal("expected typed Customer.email attribute")
 	}
 	if a.Contexts["Customers"].Implementation.Language != "rust" {
 		t.Fatal("expected Rust implementation")

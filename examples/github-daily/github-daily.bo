@@ -4,6 +4,17 @@ collects activity through declared ports, and renders a human-facing report.
 The Go program is only one implementation of these contracts.
 """
 architecture GitHubDaily do
+  object Organization do
+    attribute login: string
+  end
+
+  object Activity do
+    attribute source: string
+    attribute actor: string
+    attribute repository: string
+    attribute occurred_at: timestamp
+  end
+
   context DailyReporting do
     implementation go "./"
 
@@ -11,8 +22,8 @@ architecture GitHubDaily do
     Reads the activity sources available to the authenticated GitHub user.
     """
     interface GitHubActivity do
-      operation organizations()
-      operation activity(organization, timeWindow)
+      operation organizations() returns Organization[]
+      operation activity(organization, timeWindow) returns Activity[]
     end
     exposes GitHubActivity
 

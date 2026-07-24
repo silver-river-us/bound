@@ -33,6 +33,24 @@ Triple-quoted blocks are documentation nodes. A block immediately before an
 architecture, context, interface, operation, or relationship is stored on that
 AST node and can be rendered by future documentation backends.
 
+Domain objects and their attributes are declared explicitly:
+
+```bo
+object Activity do
+  attribute repository: string
+  attribute occurred_at: timestamp
+end
+```
+
+Operations have explicit method names and may reference those objects in their
+language-neutral signatures:
+
+```bo
+interface ActivitySource do
+  operation activity(organization, timeWindow) returns Activity[]
+end
+```
+
 ## Try it
 
 ```sh
