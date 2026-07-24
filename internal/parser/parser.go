@@ -13,6 +13,9 @@ var (
 	architectureRE   = regexp.MustCompile(`^architecture\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	objectRE         = regexp.MustCompile(`^object\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	attributeRE      = regexp.MustCompile(`^attribute\s+:([A-Za-z_][A-Za-z0-9_]*)\s+:([A-Za-z_][A-Za-z0-9_\[\]]*)$`)
+	filesRE          = regexp.MustCompile(`^files\s+do$`)
+	fileMappingRE    = regexp.MustCompile(`^"([^"]+)"\s*->\s*([A-Za-z_][A-Za-z0-9_]*)$`)
+	entrypointRE     = regexp.MustCompile(`^entrypoint\s+"([^"]+)"\s*->\s*([A-Za-z_][A-Za-z0-9_]*)$`)
 	contextRE        = regexp.MustCompile(`^context\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	implementationRE = regexp.MustCompile(`^implementation\s+([A-Za-z_][A-Za-z0-9_+-]*)\s+"([^"]+)"$`)
 	exposesRE        = regexp.MustCompile(`^exposes\s+([A-Za-z_][A-Za-z0-9_]*)$`)
@@ -27,6 +30,7 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 	var current *model.Context
 	var currentInterface *model.Interface
 	var currentObject *model.Object
+	currentFiles := false
 	pendingDescription := ""
 	lineNumber := 0
 	for scanner.Scan() {
@@ -68,10 +72,29 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			pendingDescription = ""
 			continue
 		}
+		if current == nil && currentObject == nil && currentFiles {
+			if line == "end" {
+				currentFiles = false
+				continue
+			}
+			if match := fileMappingRE.FindStringSubmatch(line); match != nil {
+				architecture.Files = append(architecture.Files, model.FileMapping{Path: match[1], Node: match[2]})
+				continue
+			}
+			if match := entrypointRE.FindStringSubmatch(line); match != nil {
+				architecture.Files = append(architecture.Files, model.FileMapping{Path: match[1], Node: match[2], EntryPoint: true})
+				continue
+			}
+			return nil, syntaxError(lineNumber, "expected file mapping, entrypoint, or end")
+		}
 		if current == nil && line == "end" {
 			return architecture, nil
 		}
 		if current == nil {
+			if filesRE.MatchString(line) {
+				currentFiles = true
+				continue
+			}
 			if match := objectRE.FindStringSubmatch(line); match != nil {
 				if _, exists := architecture.Objects[match[1]]; exists {
 					return nil, syntaxError(lineNumber, "duplicate object")
@@ -150,6 +173,9 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			return nil, fmt.Errorf("line %d: unclosed interface %s", lineNumber, currentInterface.Name)
 		}
 		return nil, fmt.Errorf("line %d: unclosed context %s", lineNumber, current.Name)
+	}
+	if currentFiles {
+		return nil, fmt.Errorf("line %d: unclosed files block", lineNumber)
 	}
 	return nil, fmt.Errorf("unclosed architecture %s", architecture.Name)
 }

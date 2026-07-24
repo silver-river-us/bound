@@ -35,4 +35,9 @@ architecture GitHubDaily do
     end
     exposes DailyReport
   end
+
+  files do
+    entrypoint "main.go" -> DailyReporting
+    "main_test.go" -> DailyReporting
+  end
 end

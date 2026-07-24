@@ -45,6 +45,20 @@ end
 Attributes use Ruby-like symbols for both the field name and its language-neutral
 type: `attribute :name :type`.
 
+Implementation source files are mapped to exactly one context in a `files` block.
+Entry points are explicit mappings too:
+
+```bo
+files do
+  "internal/orders/order.go" -> Orders
+  entrypoint "cmd/commerce/main.go" -> App
+end
+```
+
+The Go checker requires every Go source file under a declared implementation to
+appear exactly once in this mapping. This keeps generated output owned by one
+architecture node and prevents entry points from being inferred accidentally.
+
 Operations have explicit method names and may reference those objects in their
 language-neutral signatures:
 

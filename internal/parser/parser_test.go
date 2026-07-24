@@ -21,14 +21,17 @@ architecture Commerce do
     end
     exposes OrderPort
   end
-  context Customers do
+	  context Customers do
     implementation rust "./crates/customers"
     interface CustomerPort do
       operation Find(customerID string) Customer
     end
     exposes CustomerPort
-  end
-  Orders -> Customers via CustomerPort
+	  end
+	  files do
+	    entrypoint "cmd/commerce/main.go" -> Orders
+	  end
+	  Orders -> Customers via CustomerPort
 end`))
 	if err != nil {
 		t.Fatal(err)
@@ -50,6 +53,9 @@ end`))
 	}
 	if a.Contexts["Customers"].Implementation.Language != "rust" {
 		t.Fatal("expected Rust implementation")
+	}
+	if len(a.Files) != 1 || !a.Files[0].EntryPoint {
+		t.Fatalf("expected explicit file mapping and entry point, got %#v", a.Files)
 	}
 }
 

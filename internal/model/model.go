@@ -6,6 +6,14 @@ type Architecture struct {
 	Contexts    map[string]*Context
 	Objects     map[string]*Object
 	Relations   []Relation
+	Files       []FileMapping
+}
+
+// FileMapping assigns one implementation source file to one architecture context.
+type FileMapping struct {
+	Path       string
+	Node       string
+	EntryPoint bool
 }
 
 type Context struct {

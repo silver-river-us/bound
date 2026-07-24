@@ -1,10 +1,40 @@
 package model
 
-import "fmt"
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+)
 
 func (a *Architecture) Validate() error {
 	if a.Name == "" {
 		return fmt.Errorf("architecture name is required")
+	}
+	files := make(map[string]FileMapping, len(a.Files))
+	for _, file := range a.Files {
+		clean := filepath.ToSlash(filepath.Clean(file.Path))
+		if file.Path == "" || clean == "." || filepath.IsAbs(file.Path) || clean == ".." || strings.HasPrefix(clean, "../") {
+			return fmt.Errorf("file mapping %q must be a relative path", file.Path)
+		}
+		if file.Path != clean {
+			return fmt.Errorf("file mapping %q must use a normalized relative path", file.Path)
+		}
+		if _, exists := files[file.Path]; exists {
+			return fmt.Errorf("file %s is mapped more than once", file.Path)
+		}
+		if _, ok := a.Contexts[file.Node]; !ok {
+			return fmt.Errorf("file %s references unknown context %s", file.Path, file.Node)
+		}
+		files[file.Path] = file
+	}
+	for _, file := range a.Files {
+		if !file.EntryPoint {
+			continue
+		}
+		mapping := files[file.Path]
+		if mapping.Node == "" {
+			return fmt.Errorf("entry point %s must be mapped to a context", file.Path)
+		}
 	}
 	for name, object := range a.Objects {
 		if object.Name == "" || object.Name != name {
