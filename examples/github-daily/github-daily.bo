@@ -11,18 +11,30 @@ architecture GitHubDaily do
   end
 
   value Activity do
+    state :organization :string
     state :source :string
+    state :type :string
     state :actor :string
     state :repository :string
-    state :occurred_at :timestamp
+    state :created_at :timestamp
+    state :summary :string
+    state :url :string
   end
 
-  value DailyReportInput do
+  value TimeWindow do
     state :since :timestamp
     state :until :timestamp
-    state :organizations :Organization[]
+  end
+
+  value ActivityFeed do
     state :activities :Activity[]
     state :warnings :string[]
+  end
+
+  value ReportingSnapshot do
+    state :window :TimeWindow
+    state :organizations :Organization[]
+    state :feed :ActivityFeed
   end
 
   context DailyReporting do
@@ -33,7 +45,7 @@ architecture GitHubDaily do
     """
     interface GithubActivity do
       behavior organizations() returns Organization[]
-      behavior activity(organization, timeWindow) returns Activity[]
+      behavior activities(organization Organization, window TimeWindow) returns ActivityFeed
     end
     exposes GithubActivity
 
@@ -41,7 +53,7 @@ architecture GitHubDaily do
     Produces the daily report and its summary.
     """
     interface DailyReport do
-      behavior render(input DailyReportInput) returns string
+      behavior render(snapshot ReportingSnapshot) returns string
     end
     exposes DailyReport
   end
