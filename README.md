@@ -47,3 +47,14 @@ The architecture model is intentionally independent of implementation languages.
 The Go backend currently resolves implementation locators relative to the analyzed source root. Standard-library and third-party imports are ignored; cross-context imports must have a declared relationship in the `.bo` model.
 
 Interfaces are architecture contracts, not tied to one implementation language. A Go backend can realize them as ordinary Go interfaces, as shown in `examples/commerce/internal/orders/order.go` and `examples/commerce/internal/customers/customer.go`.
+
+## GitHub daily activity example
+
+The `examples/github-daily` program discovers all organizations visible to the authenticated GitHub user, reads each organization's event stream for the last 24 hours, and writes a Markdown report.
+
+```sh
+go run ./examples/github-daily
+go run ./examples/github-daily -since 48h -output -
+```
+
+Authentication uses `GITHUB_TOKEN` when set, otherwise the token from `gh auth token`. Reports are written to `reports/github-activity-YYYY-MM-DD.md` by default.
