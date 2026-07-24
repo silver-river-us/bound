@@ -70,7 +70,10 @@ end
 Imports are optional, and paths are resolved relative to the importing `.bo`.
 The Go checker requires every Go source file under a declared implementation to
 appear exactly once in the imported map. This keeps generated output owned by
-one architecture node and prevents entry points from being inferred.
+one architecture node and prevents entry points from being inferred. It also
+requires each mapped Go file to contain exactly one top-level implementation
+declaration, and rejects files outside the context folder declared by
+`implementation`.
 
 Operations have explicit method names and may reference those objects in their
 language-neutral signatures:

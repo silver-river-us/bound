@@ -72,3 +72,13 @@ func TestGoRequiresExplicitEntrypoint(t *testing.T) {
 		t.Fatal("expected explicit entrypoint error")
 	}
 }
+
+func TestGoRejectsMultipleDeclarationsPerFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "multiple.go")
+	if err := os.WriteFile(path, []byte("package example\n\ntype A struct{}\ntype B struct{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateOneDeclaration(path); err == nil {
+		t.Fatal("expected multiple declaration error")
+	}
+}

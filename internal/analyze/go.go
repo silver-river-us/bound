@@ -3,6 +3,9 @@ package analyze
 import (
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	goparser "go/parser"
+	"go/token"
 	"io"
 	"os"
 	"os/exec"
@@ -123,8 +126,29 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 		if _, ok := mappings[relative]; !ok {
 			return fmt.Errorf("Go source file %s has no architecture mapping", relative)
 		}
+		if err := validateOneDeclaration(path); err != nil {
+			return err
+		}
 		return nil
 	})
+}
+
+func validateOneDeclaration(path string) error {
+	file, err := goparser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		return fmt.Errorf("parse Go source file %s: %w", path, err)
+	}
+	declarations := 0
+	for _, declaration := range file.Decls {
+		if gen, ok := declaration.(*ast.GenDecl); ok && gen.Tok == token.IMPORT {
+			continue
+		}
+		declarations++
+	}
+	if declarations != 1 {
+		return fmt.Errorf("Go source file %s must contain exactly one implementation declaration, found %d", path, declarations)
+	}
+	return nil
 }
 
 func within(file, directory string) bool {

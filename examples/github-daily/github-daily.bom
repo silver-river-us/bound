@@ -1,4 +1,26 @@
 map GitHubDaily do
   entrypoint "main.go" -> DailyReporting
   "main_test.go" -> DailyReporting
+  "constants.go" -> DailyReporting
+  "http_client.go" -> DailyReporting
+  "client.go" -> DailyReporting
+  "organization.go" -> DailyReporting
+  "event.go" -> DailyReporting
+  "activity.go" -> DailyReporting
+  "search_response.go" -> DailyReporting
+  "issue_result.go" -> DailyReporting
+  "commit_result.go" -> DailyReporting
+  "auth.go" -> DailyReporting
+  "organizations.go" -> DailyReporting
+  "activities.go" -> DailyReporting
+  "event_activities.go" -> DailyReporting
+  "commit_activities.go" -> DailyReporting
+  "issue_activities.go" -> DailyReporting
+  "get.go" -> DailyReporting
+  "summarize.go" -> DailyReporting
+  "first_line.go" -> DailyReporting
+  "report.go" -> DailyReporting
+  "human_actor.go" -> DailyReporting
+  "fatal.go" -> DailyReporting
+  "architecture_check.go" -> DailyReporting
 end
