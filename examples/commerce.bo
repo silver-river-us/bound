@@ -22,7 +22,7 @@ architecture Commerce do
       """
       Place creates an order after the caller has authenticated the customer.
       """
-      behavior Place(orderID string, amount int) Order
+      behavior Place(orderID string, amount int) returns Order
     end
     exposes OrderPort
 
@@ -40,7 +40,7 @@ architecture Commerce do
         state :email :string
       end
 
-      behavior Find(customerID string) Customer
+      behavior Find(customerID string) returns Customer
     end
     exposes CustomerPort
 

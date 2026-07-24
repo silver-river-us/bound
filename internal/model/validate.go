@@ -94,10 +94,28 @@ func (a *Architecture) Validate() error {
 				if err := validateObject(typeName, object); err != nil {
 					return fmt.Errorf("interface %s.%s: %w", name, interfaceName, err)
 				}
+				for _, attribute := range object.Attributes {
+					if !a.validContractType(name, contract, attribute.Type) {
+						return fmt.Errorf("interface %s.%s type %s references unknown type %s", name, interfaceName, typeName, attribute.Type)
+					}
+				}
 			}
 			for operationName, operation := range contract.Operations {
 				if operationName != operation.Name || operation.Name == "" {
 					return fmt.Errorf("interface %s.%s has an invalid operation", name, interfaceName)
+				}
+				parameterNames := map[string]bool{}
+				for _, parameter := range operation.Parameters {
+					if parameter.Name == "" || parameterNames[parameter.Name] {
+						return fmt.Errorf("interface %s.%s behavior %s has an invalid parameter", name, interfaceName, operationName)
+					}
+					parameterNames[parameter.Name] = true
+					if !a.validContractType(name, contract, parameter.Type) {
+						return fmt.Errorf("interface %s.%s behavior %s references unknown type %s", name, interfaceName, operationName, parameter.Type)
+					}
+				}
+				if operation.Returns != "" && !a.validContractType(name, contract, operation.Returns) {
+					return fmt.Errorf("interface %s.%s behavior %s references unknown return type %s", name, interfaceName, operationName, operation.Returns)
 				}
 			}
 		}
@@ -128,6 +146,27 @@ func (a *Architecture) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (a *Architecture) validContractType(contextName string, contract *Interface, typeName string) bool {
+	base := strings.TrimSuffix(typeName, "[]")
+	primitives := map[string]bool{
+		"any": true, "bool": true, "decimal": true, "float": true,
+		"int": true, "string": true, "timestamp": true,
+	}
+	if primitives[base] || contract.Types[base] != nil {
+		return true
+	}
+	parts := strings.Split(base, ".")
+	if len(parts) == 2 {
+		target := a.Contexts[contextName].Interfaces[parts[0]]
+		return target != nil && target.Types[parts[1]] != nil
+	}
+	if len(parts) == 3 {
+		context := a.Contexts[parts[0]]
+		return context != nil && context.Exposes[parts[1]] && context.Interfaces[parts[1]].Types[parts[2]] != nil
+	}
+	return false
 }
 
 func (a *Architecture) validModuleDependency(module *Module, dependency string) bool {

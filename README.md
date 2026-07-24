@@ -18,14 +18,14 @@ architecture Commerce do
 
   context Orders do
     interface OrderPort do
-      behavior Place(orderID string, amount int) Order
+      behavior Place(orderID string, amount int) returns Order
     end
     exposes OrderPort
   end
 
   context Customers do
     interface CustomerPort do
-      behavior Find(customerID string) Customer
+      behavior Find(customerID string) returns Customer
     end
     exposes CustomerPort
   end
@@ -109,7 +109,7 @@ their language-neutral signatures:
 
 ```bo
 interface ActivitySource do
-  behavior activity(organization, timeWindow) returns Activity[]
+  behavior activity(organization Organization, window TimeWindow) returns Activity[]
 end
 ```
 

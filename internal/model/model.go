@@ -62,6 +62,13 @@ type Operation struct {
 	Name        string
 	Signature   string
 	Description string
+	Parameters  []Parameter
+	Returns     string
+}
+
+type Parameter struct {
+	Name string
+	Type string
 }
 
 type Object struct {

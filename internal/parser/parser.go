@@ -25,7 +25,7 @@ var (
 	implementationRE = regexp.MustCompile(`^implementation\s+([A-Za-z_][A-Za-z0-9_+-]*)\s+"([^"]+)"$`)
 	exposesRE        = regexp.MustCompile(`^exposes\s+([A-Za-z_][A-Za-z0-9_]*)$`)
 	interfaceRE      = regexp.MustCompile(`^interface\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
-	behaviorRE       = regexp.MustCompile(`^behavior\s+([A-Za-z_][A-Za-z0-9_]*)(.*)$`)
+	behaviorRE       = regexp.MustCompile(`^behavior\s+([A-Za-z_][A-Za-z0-9_]*)\(([^)]*)\)(?:\s+returns\s+([A-Za-z_][A-Za-z0-9_.]*(?:\[\])?))?$`)
 	relationRE       = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)\s*->\s*([A-Za-z_][A-Za-z0-9_]*)(?:\s+via\s+([A-Za-z_][A-Za-z0-9_]*))?$`)
 )
 
@@ -143,7 +143,17 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			if _, exists := currentInterface.Operations[match[1]]; exists {
 				return nil, syntaxError(lineNumber, "duplicate behavior")
 			}
-			currentInterface.Operations[match[1]] = model.Operation{Name: match[1], Signature: strings.TrimSpace(match[2]), Description: pendingDescription}
+			parameters, err := parseParameters(match[2])
+			if err != nil {
+				return nil, syntaxError(lineNumber, err.Error())
+			}
+			currentInterface.Operations[match[1]] = model.Operation{
+				Name:        match[1],
+				Signature:   strings.TrimSpace(strings.TrimPrefix(line, "behavior "+match[1])),
+				Description: pendingDescription,
+				Parameters:  parameters,
+				Returns:     match[3],
+			}
 			pendingDescription = ""
 			continue
 		}
@@ -223,6 +233,36 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 		return nil, fmt.Errorf("line %d: unclosed context %s", lineNumber, current.Name)
 	}
 	return nil, fmt.Errorf("unclosed architecture %s", architecture.Name)
+}
+
+func parseParameters(source string) ([]model.Parameter, error) {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return nil, nil
+	}
+	parts := strings.Split(source, ",")
+	parameters := make([]model.Parameter, 0, len(parts))
+	names := map[string]bool{}
+	for _, part := range parts {
+		fields := strings.Fields(strings.TrimSpace(part))
+		if len(fields) != 2 || !identifierRE(fields[0]) || !typeNameRE(fields[1]) {
+			return nil, fmt.Errorf("invalid behavior parameter %q", strings.TrimSpace(part))
+		}
+		if names[fields[0]] {
+			return nil, fmt.Errorf("duplicate behavior parameter %s", fields[0])
+		}
+		names[fields[0]] = true
+		parameters = append(parameters, model.Parameter{Name: fields[0], Type: fields[1]})
+	}
+	return parameters, nil
+}
+
+func identifierRE(value string) bool {
+	return regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`).MatchString(value)
+}
+
+func typeNameRE(value string) bool {
+	return regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]*(?:\[\])?$`).MatchString(value)
 }
 
 func addModule(architecture *model.Architecture, context *model.Context, parent *model.Module, name string) (*model.Module, error) {

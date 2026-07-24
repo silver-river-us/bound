@@ -1,0 +1,71 @@
+package parser
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestBehaviorSignatureIsParsedAndValidated(t *testing.T) {
+	architecture, err := Parse(strings.NewReader(`
+architecture Example do
+  implementation go "./"
+  context Reporting do
+    interface Reports do
+      value Snapshot do
+        state :created_at :timestamp
+      end
+      behavior render(snapshot Snapshot, warnings string[]) returns string
+    end
+    exposes Reports
+  end
+end
+`))
+	if err != nil {
+		t.Fatalf("parse architecture: %v", err)
+	}
+	operation := architecture.Contexts["Reporting"].Interfaces["Reports"].Operations["render"]
+	if len(operation.Parameters) != 2 || operation.Parameters[0].Type != "Snapshot" {
+		t.Fatalf("parameters = %#v", operation.Parameters)
+	}
+	if operation.Returns != "string" {
+		t.Fatalf("returns = %q, want string", operation.Returns)
+	}
+	if err := architecture.Validate(); err != nil {
+		t.Fatalf("validate architecture: %v", err)
+	}
+}
+
+func TestBehaviorRejectsMalformedParameters(t *testing.T) {
+	_, err := Parse(strings.NewReader(`
+architecture Example do
+  implementation go "./"
+  context Reporting do
+    interface Reports do
+      behavior render(snapshot) returns string
+    end
+  end
+end
+`))
+	if err == nil || !strings.Contains(err.Error(), "invalid behavior parameter") {
+		t.Fatalf("error = %v, want invalid behavior parameter", err)
+	}
+}
+
+func TestValidationRejectsUnknownContractType(t *testing.T) {
+	architecture, err := Parse(strings.NewReader(`
+architecture Example do
+  implementation go "./"
+  context Reporting do
+    interface Reports do
+      behavior render(snapshot Snapshop) returns string
+    end
+  end
+end
+`))
+	if err != nil {
+		t.Fatalf("parse architecture: %v", err)
+	}
+	if err := architecture.Validate(); err == nil || !strings.Contains(err.Error(), "unknown type Snapshop") {
+		t.Fatalf("error = %v, want unknown type Snapshop", err)
+	}
+}
