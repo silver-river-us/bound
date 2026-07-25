@@ -5,30 +5,42 @@ The Go program is only one implementation of these contracts.
 """
 architecture GitHubDaily do
   implementation go "./"
-  import "github-daily.go.bom"
 
   context Reporting do
-    import "contracts/github_activity.bo"
-    import "contracts/daily_report.bo"
+    import contracts from "contracts/github_activity.bo"
+    import contracts from "contracts/daily_report.bo"
 
-    exposes GithubActivity
+    exposes GitHubActivity
     exposes DailyReport
 
     module Reporting do
       module Activity do
-        module Github do
-          implements GithubActivity
-          uses GithubActivity
+        files [:activity, :organization, :event, :issue_result, :commit_result, :search_response, :contract]
+        module GitHub do
+          implements GitHubActivity
+          uses GitHubActivity
           uses Reporting.Activity
+          files [:constants, :http_client, :client]
+          files [:auth, :organizations, :activities]
+          files [:event_activities, :commit_activities, :issue_activities]
+          files [:get, :summarize, :first_line]
         end
       end
 
       module DailyReport do
         implements DailyReport
-        uses GithubActivity
-        uses Activity
-        uses Activity.Github
-        entrypoint GithubDaily
+        uses GitHubActivity
+        uses Reporting.Activity
+        uses Reporting.Activity.GitHub
+        files [:report, :human_actor]
+
+        module Command do
+          uses Reporting.Activity
+          uses Reporting.Activity.GitHub
+          uses Reporting.DailyReport
+          entrypoint GitHubDaily
+          files [:fatal, :architecture_check]
+        end
       end
     end
   end

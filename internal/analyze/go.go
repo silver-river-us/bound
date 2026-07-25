@@ -120,7 +120,9 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 			}
 			if mapping.EntryPoint {
 				expected := filepath.Join(location, "cmd", model.ConventionalEntrypoint(mapping.EntryPointName), "main.go")
-				if model.ConventionalEntrypoint(module.Name) == model.ConventionalEntrypoint(mapping.EntryPointName) {
+				if model.ConventionalFolder(module.Name) == "command" {
+					expected = filepath.Join(location, "main.go")
+				} else if model.ConventionalEntrypoint(module.Name) == model.ConventionalEntrypoint(mapping.EntryPointName) {
 					expected = filepath.Join(location, "main.go")
 				}
 				if absolute != expected {
@@ -157,6 +159,9 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 
 func withinModuleEntrypoint(directory, location string, module *model.Module) bool {
 	for name := range module.Entrypoints {
+		if model.ConventionalFolder(module.Name) == "command" && directory == filepath.Join(location, model.ConventionalEntrypoint(name)) {
+			return true
+		}
 		if directory == filepath.Join(location, "cmd", model.ConventionalEntrypoint(name)) {
 			return true
 		}

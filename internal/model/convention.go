@@ -6,6 +6,14 @@ import (
 )
 
 func ConventionalFolder(name string) string {
+	specialFolders := map[string]string{
+		"Command":     "command",
+		"GitHub":      "github",
+		"GitHubDaily": "github-daily",
+	}
+	if folder, ok := specialFolders[name]; ok {
+		return folder
+	}
 	runes := []rune(name)
 	var result []rune
 	for index, character := range runes {

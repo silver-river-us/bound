@@ -24,7 +24,7 @@ end
 architecture Example do
   implementation go "./"
   context Reporting do
-    import "reports.bo"
+    import contracts from "reports.bo"
     exposes Reports
   end
 end
@@ -54,7 +54,7 @@ interface Types do
 end
 `)
 	writeTestFile(t, filepath.Join(directory, "reports.bo"), `
-import "types.bo"
+import contracts from "types.bo"
 interface Reports do
   behavior find(id Types.Identifier) returns string
 end
@@ -63,7 +63,7 @@ end
 architecture Example do
   implementation go "./"
   context Reporting do
-    import "reports.bo"
+    import contracts from "reports.bo"
     exposes Reports
   end
 end
@@ -89,7 +89,7 @@ end
 architecture Example do
   implementation go "./"
   context Reporting do
-    import "invalid.bo"
+    import contracts from "invalid.bo"
   end
 end
 `)

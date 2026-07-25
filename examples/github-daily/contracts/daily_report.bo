@@ -3,9 +3,9 @@ Produces the daily report and its summary.
 """
 interface DailyReport do
   value ReportingSnapshot do
-    state :window :GithubActivity.TimeWindow
-    state :organizations :GithubActivity.Organization[]
-    state :feed :GithubActivity.ActivityFeed
+    state :window :GitHubActivity.TimeWindow
+    state :organizations :GitHubActivity.Organization[]
+    state :feed :GitHubActivity.ActivityFeed
   end
 
   behavior render(snapshot ReportingSnapshot) returns string

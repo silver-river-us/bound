@@ -18,9 +18,11 @@ var (
 	moduleRE         = regexp.MustCompile(`^module\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	implementsRE     = regexp.MustCompile(`^implements\s+([A-Za-z_][A-Za-z0-9_.]*)$`)
 	usesRE           = regexp.MustCompile(`^uses\s+([A-Za-z_][A-Za-z0-9_.]*)$`)
-	entrypointRE     = regexp.MustCompile(`^entrypoint\s+([A-Za-z_][A-Za-z0-9_]*)$`)
+	entrypointRE     = regexp.MustCompile(`^entrypoint\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+"([^"]+)")?$`)
+	fileRE           = regexp.MustCompile(`^file\s+:([A-Za-z_][A-Za-z0-9_]*)$`)
+	filesRE          = regexp.MustCompile(`^files\s+\[([^]]*)\]$`)
 	stateRE          = regexp.MustCompile(`^state\s+:([A-Za-z_][A-Za-z0-9_]*)\s+:([A-Za-z_][A-Za-z0-9_.]*(?:\[\])?)$`)
-	importRE         = regexp.MustCompile(`^import\s+"([^"]+)"$`)
+	importRE         = regexp.MustCompile(`^import\s+(contracts|map)\s+from\s+"([^"]+)"$`)
 	contextRE        = regexp.MustCompile(`^context\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	implementationRE = regexp.MustCompile(`^implementation\s+([A-Za-z_][A-Za-z0-9_+-]*)\s+"([^"]+)"$`)
 	exposesRE        = regexp.MustCompile(`^exposes\s+([A-Za-z_][A-Za-z0-9_]*)$`)
@@ -66,6 +68,21 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 				currentObject = nil
 				continue
 			}
+			if match := behaviorRE.FindStringSubmatch(line); match != nil {
+				if currentObject.Kind != "entity" {
+					return nil, syntaxError(lineNumber, "values cannot declare behavior")
+				}
+				if _, exists := currentObject.Operations[match[1]]; exists {
+					return nil, syntaxError(lineNumber, "duplicate behavior")
+				}
+				operation, err := parseOperation(match, line)
+				if err != nil {
+					return nil, syntaxError(lineNumber, err.Error())
+				}
+				currentObject.Operations[match[1]] = operation
+				pendingDescription = ""
+				continue
+			}
 			match := stateRE.FindStringSubmatch(line)
 			if match == nil {
 				return nil, syntaxError(lineNumber, "expected state or end")
@@ -94,14 +111,17 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 				return nil, syntaxError(lineNumber, "duplicate implementation")
 			}
 			if match := importRE.FindStringSubmatch(line); match != nil {
-				architecture.Imports = append(architecture.Imports, match[1])
+				if err := validateImportKind(match[1], match[2]); err != nil {
+					return nil, syntaxError(lineNumber, err.Error())
+				}
+				architecture.Imports = append(architecture.Imports, model.Import{Kind: match[1], Path: match[2]})
 				continue
 			}
 			if match := domainRE.FindStringSubmatch(line); match != nil {
 				if _, exists := architecture.Objects[match[2]]; exists {
 					return nil, syntaxError(lineNumber, "duplicate object")
 				}
-				currentObject = &model.Object{Name: match[2], Kind: match[1], Description: pendingDescription, Attributes: map[string]model.Attribute{}}
+				currentObject = &model.Object{Name: match[2], Kind: match[1], Description: pendingDescription, Attributes: map[string]model.Attribute{}, Operations: map[string]model.Operation{}}
 				pendingDescription = ""
 				architecture.Objects[match[2]] = currentObject
 				continue
@@ -131,7 +151,7 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 				if _, exists := currentInterface.Types[match[2]]; exists {
 					return nil, syntaxError(lineNumber, "duplicate interface type")
 				}
-				currentObject = &model.Object{Name: match[2], Kind: match[1], Description: pendingDescription, Attributes: map[string]model.Attribute{}}
+				currentObject = &model.Object{Name: match[2], Kind: match[1], Description: pendingDescription, Attributes: map[string]model.Attribute{}, Operations: map[string]model.Operation{}}
 				pendingDescription = ""
 				currentInterface.Types[match[2]] = currentObject
 				continue
@@ -182,11 +202,31 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 				module.Uses[match[1]] = true
 				continue
 			}
-			if match := entrypointRE.FindStringSubmatch(line); match != nil {
-				module.Entrypoints[match[1]] = true
+			if match := fileRE.FindStringSubmatch(line); match != nil {
+				module.Files = append(module.Files, match[1])
 				continue
 			}
-			return nil, syntaxError(lineNumber, "expected module, implements, uses, entrypoint, or end")
+			if match := filesRE.FindStringSubmatch(line); match != nil {
+				files, err := parseFileAtoms(match[1])
+				if err != nil {
+					return nil, syntaxError(lineNumber, err.Error())
+				}
+				module.Files = append(module.Files, files...)
+				continue
+			}
+			if match := entrypointRE.FindStringSubmatch(line); match != nil {
+				module.Entrypoints[match[1]] = true
+				if match[2] != "" {
+					architecture.Files = append(architecture.Files, model.FileMapping{
+						Path:           match[2],
+						Node:           module.Qualified,
+						EntryPoint:     true,
+						EntryPointName: match[1],
+					})
+				}
+				continue
+			}
+			return nil, syntaxError(lineNumber, "expected module, implements, uses, file, entrypoint, or end")
 		}
 		if line == "end" {
 			current = nil
@@ -194,7 +234,11 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 		}
 		switch {
 		case importRE.MatchString(line):
-			current.Imports = append(current.Imports, importRE.FindStringSubmatch(line)[1])
+			match := importRE.FindStringSubmatch(line)
+			if err := validateImportKind(match[1], match[2]); err != nil {
+				return nil, syntaxError(lineNumber, err.Error())
+			}
+			current.Imports = append(current.Imports, model.Import{Kind: match[1], Path: match[2]})
 		case exposesRE.MatchString(line):
 			current.Exposes[exposesRE.FindStringSubmatch(line)[1]] = true
 		case interfaceRE.MatchString(line):
@@ -257,6 +301,41 @@ func parseParameters(source string) ([]model.Parameter, error) {
 		parameters = append(parameters, model.Parameter{Name: fields[0], Type: fields[1]})
 	}
 	return parameters, nil
+}
+
+func parseFileAtoms(source string) ([]string, error) {
+	parts := strings.Split(source, ",")
+	files := make([]string, 0, len(parts))
+	for _, part := range parts {
+		atom := strings.TrimSpace(part)
+		if len(atom) < 2 || atom[0] != ':' || !identifierRE(atom[1:]) {
+			return nil, fmt.Errorf("invalid file atom %q", atom)
+		}
+		files = append(files, atom[1:])
+	}
+	return files, nil
+}
+
+func validateImportKind(kind, importPath string) error {
+	extension := filepath.Ext(importPath)
+	want := map[string]string{"contracts": ".bo", "map": ".bom"}[kind]
+	if extension != want {
+		return fmt.Errorf("%s import %q must target a %s file", kind, importPath, want)
+	}
+	return nil
+}
+
+func parseOperation(match []string, line string) (model.Operation, error) {
+	parameters, err := parseParameters(match[2])
+	if err != nil {
+		return model.Operation{}, err
+	}
+	return model.Operation{
+		Name:       match[1],
+		Signature:  strings.TrimSpace(strings.TrimPrefix(line, "behavior "+match[1])),
+		Parameters: parameters,
+		Returns:    match[3],
+	}, nil
 }
 
 func identifierRE(value string) bool {
@@ -373,9 +452,10 @@ func parseFile(path string, visiting map[string]bool) (*model.Architecture, erro
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
-	for _, importPath := range architecture.Imports {
+	for _, imported := range architecture.Imports {
+		importPath := imported.Path
 		importedPath := filepath.Join(filepath.Dir(absPath), importPath)
-		if filepath.Ext(importedPath) == ".bom" {
+		if imported.Kind == "map" {
 			mapFile, err := os.Open(importedPath)
 			if err != nil {
 				return nil, fmt.Errorf("open import %s: %w", importPath, err)
@@ -401,7 +481,8 @@ func parseFile(path string, visiting map[string]bool) (*model.Architecture, erro
 	}
 	fragmentVisiting := map[string]bool{}
 	for _, context := range architecture.Contexts {
-		for _, importPath := range context.Imports {
+		for _, imported := range context.Imports {
+			importPath := imported.Path
 			importedPath := filepath.Join(filepath.Dir(absPath), importPath)
 			if err := loadContextFragment(importedPath, context, fragmentVisiting); err != nil {
 				return nil, fmt.Errorf("context %s import %s: %w", context.Name, importPath, err)
@@ -443,9 +524,9 @@ func loadContextFragment(path string, target *model.Context, visiting map[string
 		}
 		target.Interfaces[name] = contract
 	}
-	for _, importPath := range source.Imports {
-		if err := loadContextFragment(filepath.Join(filepath.Dir(absolute), importPath), target, visiting); err != nil {
-			return fmt.Errorf("import %s: %w", importPath, err)
+	for _, imported := range source.Imports {
+		if err := loadContextFragment(filepath.Join(filepath.Dir(absolute), imported.Path), target, visiting); err != nil {
+			return fmt.Errorf("import %s: %w", imported.Path, err)
 		}
 	}
 	return nil

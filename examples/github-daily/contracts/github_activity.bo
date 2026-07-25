@@ -1,7 +1,7 @@
 """
 Reads the activity sources available to the authenticated GitHub user.
 """
-interface GithubActivity do
+interface GitHubActivity do
   entity Organization do
     state :login :string
   end

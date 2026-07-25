@@ -62,6 +62,57 @@ end
 	}
 }
 
+func TestModulesDeclareSourceFilesAndEntrypointPaths(t *testing.T) {
+	architecture, err := Parse(strings.NewReader(`
+architecture Example do
+  implementation go "./"
+  context Reporting do
+    module Reporting do
+      module Command do
+        module DailyReport do
+          files [:report, :summary]
+          entrypoint DailyReport
+        end
+      end
+    end
+  end
+end
+`))
+	if err != nil {
+		t.Fatalf("parse architecture: %v", err)
+	}
+	module := architecture.Modules["Reporting.Command.DailyReport"]
+	if module == nil || len(module.Files) != 2 || module.Files[0] != "report" || module.Files[1] != "summary" {
+		t.Fatalf("module files = %#v", module)
+	}
+	if err := architecture.Validate(); err != nil {
+		t.Fatalf("validate architecture: %v", err)
+	}
+	if len(architecture.Files) != 3 {
+		t.Fatalf("files = %d, want 3", len(architecture.Files))
+	}
+	entrypoint := architecture.Files[2]
+	if !entrypoint.EntryPoint || entrypoint.EntryPointName != "DailyReport" || entrypoint.Node != "Reporting.Command.DailyReport" || entrypoint.Path != "reporting/command/daily_report/main.go" {
+		t.Fatalf("entrypoint mapping = %#v", entrypoint)
+	}
+}
+
+func TestFilesRejectNonAtomEntries(t *testing.T) {
+	_, err := Parse(strings.NewReader(`
+architecture Example do
+  implementation go "./"
+  context Reporting do
+    module Reporting do
+      files ["report.go"]
+    end
+  end
+end
+`))
+	if err == nil || !strings.Contains(err.Error(), "invalid file atom") {
+		t.Fatalf("error = %v, want invalid file atom", err)
+	}
+}
+
 func TestModuleDeclarationRejectsQualifiedName(t *testing.T) {
 	_, err := Parse(strings.NewReader(`
 architecture Example do

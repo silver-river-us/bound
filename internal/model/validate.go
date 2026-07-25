@@ -13,6 +13,9 @@ func (a *Architecture) Validate() error {
 	if a.Implementation.Language == "" || a.Implementation.Locator == "" {
 		return fmt.Errorf("architecture must declare an implementation")
 	}
+	if err := a.materializeModuleFiles(); err != nil {
+		return err
+	}
 	for name, module := range a.Modules {
 		if module.Qualified != name || module.Name == "" || module.Context == "" {
 			return fmt.Errorf("architecture has an invalid module")
@@ -79,10 +82,11 @@ func (a *Architecture) Validate() error {
 		if object.Name == "" || object.Name != name || (object.Kind != "entity" && object.Kind != "value") {
 			return fmt.Errorf("architecture has an invalid domain type")
 		}
-		for attributeName, attribute := range object.Attributes {
-			if attribute.Name == "" || attribute.Name != attributeName || attribute.Type == "" {
-				return fmt.Errorf("domain type %s has an invalid state", name)
-			}
+		if err := validateObject(name, object); err != nil {
+			return fmt.Errorf("architecture domain type %s: %w", name, err)
+		}
+		if err := validateObjectOperations(name, object, a.validArchitectureType); err != nil {
+			return fmt.Errorf("architecture domain type %s: %w", name, err)
 		}
 	}
 	for name, context := range a.Contexts {
@@ -98,6 +102,11 @@ func (a *Architecture) Validate() error {
 					if !a.validContractType(name, contract, attribute.Type) {
 						return fmt.Errorf("interface %s.%s type %s references unknown type %s", name, interfaceName, typeName, attribute.Type)
 					}
+				}
+				if err := validateObjectOperations(typeName, object, func(typeName string) bool {
+					return a.validContractType(name, contract, typeName)
+				}); err != nil {
+					return fmt.Errorf("interface %s.%s: %w", name, interfaceName, err)
 				}
 			}
 			for operationName, operation := range contract.Operations {
@@ -148,6 +157,83 @@ func (a *Architecture) Validate() error {
 	return nil
 }
 
+func (a *Architecture) materializeModuleFiles() error {
+	extension, ok := implementationExtension(a.Implementation.Language)
+	if !ok {
+		return fmt.Errorf("unsupported implementation language %s", a.Implementation.Language)
+	}
+	mappedEntrypoints := make(map[string]bool)
+	for _, file := range a.Files {
+		if file.EntryPoint {
+			mappedEntrypoints[file.Node+"."+file.EntryPointName] = true
+		}
+	}
+	for _, module := range a.Modules {
+		seen := map[string]bool{}
+		for _, name := range module.Files {
+			if seen[name] {
+				return fmt.Errorf("module %s declares file %s more than once", module.Qualified, name)
+			}
+			seen[name] = true
+			a.Files = append(a.Files, FileMapping{
+				Path: filepath.ToSlash(filepath.Join(a.moduleFilePath(module), name+extension)),
+				Node: module.Qualified,
+			})
+		}
+		for entrypoint := range module.Entrypoints {
+			key := module.Qualified + "." + entrypoint
+			if mappedEntrypoints[key] {
+				continue
+			}
+			a.Files = append(a.Files, FileMapping{
+				Path:           filepath.ToSlash(filepath.Join(a.moduleEntrypointPath(module, entrypoint), "main"+extension)),
+				Node:           module.Qualified,
+				EntryPoint:     true,
+				EntryPointName: entrypoint,
+			})
+			mappedEntrypoints[key] = true
+		}
+		module.Files = nil
+	}
+	return nil
+}
+
+func implementationExtension(language string) (string, bool) {
+	extensions := map[string]string{
+		"go":         ".go",
+		"python":     ".py",
+		"rust":       ".rs",
+		"typescript": ".ts",
+	}
+	extension, ok := extensions[language]
+	return extension, ok
+}
+
+func (a *Architecture) modulePath(module *Module) string {
+	parts := make([]string, 0)
+	for current := module; current != nil; current = a.Modules[current.Parent] {
+		parts = append(parts, ConventionalFolder(current.Name))
+	}
+	for left, right := 0, len(parts)-1; left < right; left, right = left+1, right-1 {
+		parts[left], parts[right] = parts[right], parts[left]
+	}
+	return filepath.Join(parts...)
+}
+
+func (a *Architecture) moduleFilePath(module *Module) string {
+	return a.modulePath(module)
+}
+
+func (a *Architecture) moduleEntrypointPath(module *Module, entrypoint string) string {
+	if ConventionalFolder(module.Name) == "command" {
+		return a.modulePath(module)
+	}
+	if ConventionalEntrypoint(module.Name) == ConventionalEntrypoint(entrypoint) {
+		return a.modulePath(module)
+	}
+	return filepath.Join(a.modulePath(module), "command", ConventionalEntrypoint(entrypoint))
+}
+
 func (a *Architecture) validContractType(contextName string, contract *Interface, typeName string) bool {
 	base := strings.TrimSuffix(typeName, "[]")
 	primitives := map[string]bool{
@@ -170,6 +256,15 @@ func (a *Architecture) validContractType(contextName string, contract *Interface
 			a.hasRelation(contextName, parts[0], parts[1])
 	}
 	return false
+}
+
+func (a *Architecture) validArchitectureType(typeName string) bool {
+	base := strings.TrimSuffix(typeName, "[]")
+	primitives := map[string]bool{
+		"any": true, "bool": true, "decimal": true, "float": true,
+		"int": true, "string": true, "timestamp": true,
+	}
+	return primitives[base] || a.Objects[base] != nil
 }
 
 func (a *Architecture) validModuleDependency(module *Module, dependency string) bool {
@@ -209,9 +304,34 @@ func validateObject(name string, object *Object) error {
 	if object.Name == "" || object.Name != name || (object.Kind != "entity" && object.Kind != "value") {
 		return fmt.Errorf("invalid domain type")
 	}
+	if object.Kind == "value" && len(object.Operations) > 0 {
+		return fmt.Errorf("value %s cannot declare behavior", name)
+	}
 	for attributeName, attribute := range object.Attributes {
 		if attribute.Name == "" || attribute.Name != attributeName || attribute.Type == "" {
 			return fmt.Errorf("domain type %s has an invalid state", name)
+		}
+	}
+	return nil
+}
+
+func validateObjectOperations(name string, object *Object, validType func(string) bool) error {
+	for operationName, operation := range object.Operations {
+		if operationName != operation.Name || operation.Name == "" {
+			return fmt.Errorf("domain type %s has an invalid behavior", name)
+		}
+		parameterNames := map[string]bool{}
+		for _, parameter := range operation.Parameters {
+			if parameter.Name == "" || parameterNames[parameter.Name] {
+				return fmt.Errorf("domain type %s behavior %s has an invalid parameter", name, operationName)
+			}
+			parameterNames[parameter.Name] = true
+			if !validType(parameter.Type) {
+				return fmt.Errorf("domain type %s behavior %s references unknown type %s", name, operationName, parameter.Type)
+			}
+		}
+		if operation.Returns != "" && !validType(operation.Returns) {
+			return fmt.Errorf("domain type %s behavior %s references unknown return type %s", name, operationName, operation.Returns)
 		}
 	}
 	return nil

@@ -9,7 +9,7 @@ type Architecture struct {
 	Modules        map[string]*Module
 	Relations      []Relation
 	Files          []FileMapping
-	Imports        []string
+	Imports        []Import
 }
 
 type Module struct {
@@ -19,8 +19,14 @@ type Module struct {
 	Parent      string
 	Implements  string
 	Uses        map[string]bool
+	Files       []string
 	Modules     map[string]*Module
 	Entrypoints map[string]bool
+}
+
+type Import struct {
+	Kind string
+	Path string
 }
 
 // FileMapping assigns one implementation source file to one architecture context.
@@ -34,7 +40,7 @@ type FileMapping struct {
 type Context struct {
 	Name        string
 	Description string
-	Imports     []string
+	Imports     []Import
 	Exposes     map[string]bool
 	Interfaces  map[string]*Interface
 	Modules     map[string]*Module
@@ -77,6 +83,7 @@ type Object struct {
 	Kind        string
 	Description string
 	Attributes  map[string]Attribute
+	Operations  map[string]Operation
 }
 
 type Attribute struct {

@@ -35,6 +35,50 @@ end
 	}
 }
 
+func TestEntityCanDeclareBehavior(t *testing.T) {
+	architecture, err := Parse(strings.NewReader(`
+architecture Example do
+  implementation go "./"
+  entity Organization do
+    state :login :string
+    behavior rename(login string) returns Organization
+  end
+end
+`))
+	if err != nil {
+		t.Fatalf("parse architecture: %v", err)
+	}
+	organization := architecture.Objects["Organization"]
+	if organization == nil {
+		t.Fatal("Organization was not parsed")
+	}
+	operation := organization.Operations["rename"]
+	if len(operation.Parameters) != 1 || operation.Parameters[0].Type != "string" {
+		t.Fatalf("parameters = %#v", operation.Parameters)
+	}
+	if operation.Returns != "Organization" {
+		t.Fatalf("returns = %q, want Organization", operation.Returns)
+	}
+	if err := architecture.Validate(); err != nil {
+		t.Fatalf("validate architecture: %v", err)
+	}
+}
+
+func TestValueCannotDeclareBehavior(t *testing.T) {
+	_, err := Parse(strings.NewReader(`
+architecture Example do
+  implementation go "./"
+  value Email do
+    state :address :string
+    behavior normalize() returns Email
+  end
+end
+`))
+	if err == nil || !strings.Contains(err.Error(), "values cannot declare behavior") {
+		t.Fatalf("error = %v, want value behavior rejection", err)
+	}
+}
+
 func TestBehaviorRejectsMalformedParameters(t *testing.T) {
 	_, err := Parse(strings.NewReader(`
 architecture Example do

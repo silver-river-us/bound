@@ -9,31 +9,6 @@ language and a root locator, so another architecture can be realized in Go,
 Rust, Python, TypeScript, or another backend without leaking implementation
 paths into its domain model.
 
-```bo
-"""
-The architecture description is attached to the architecture AST node.
-"""
-architecture Commerce do
-  implementation go "./"
-
-  context Orders do
-    interface OrderPort do
-      behavior Place(orderID string, amount int) returns Order
-    end
-    exposes OrderPort
-  end
-
-  context Customers do
-    interface CustomerPort do
-      behavior Find(customerID string) returns Customer
-    end
-    exposes CustomerPort
-  end
-
-  Orders -> Customers via CustomerPort
-end
-```
-
 Triple-quoted blocks are documentation nodes. A block immediately before an
 architecture, context, interface, behavior, or relationship is stored on that
 AST node and can be rendered by future documentation backends.
@@ -48,8 +23,8 @@ Bound uses DDD-oriented terms for domain design:
   are interchangeable and are generally immutable or replaced as a whole.
 - `state` declares the data that makes up an entity or value. In DDD, state is
   the collection of attributes; `state` is the architectural keyword in Bound.
-- `behavior` declares what an interface can do. It is intentionally
-  neutral between commands, queries, and language-specific functions.
+- `behavior` declares what an entity or interface can do. Entities may declare
+  behavior alongside state; values are state-only and behavior-free.
 
 Use `entity` when identity, ownership, lifecycle, or invariants matter. Use
 `value` for concepts such as time windows, addresses, measurements, and other
@@ -81,17 +56,17 @@ context that owns them:
 ```bo
 # reporting.bo
 context Reporting do
-  import "contracts/github_activity.bo"
-  import "contracts/daily_report.bo"
+  import contracts from "contracts/github_activity.bo"
+  import contracts from "contracts/daily_report.bo"
 
-  exposes GithubActivity
+  exposes GitHubActivity
   exposes DailyReport
 end
 ```
 
 ```bo
 # contracts/github_activity.bo
-interface GithubActivity do
+interface GitHubActivity do
   value TimeWindow do
     state :since :timestamp
     state :until :timestamp
@@ -106,35 +81,6 @@ values, behaviors, and other relative fragment imports. Contexts, modules,
 relationships, implementation metadata, and source maps remain in the main
 architecture so its structural and data-flow view stays visible.
 
-The architecture declaration stays in a `.bo` file. Source ownership is kept in
-a separate language-qualified `.go.bom` map imported by the architecture; this keeps implementation
-layout separate from domain design:
-
-```bo
-# commerce.bo
-architecture Commerce do
-  implementation go "./"
-  import "commerce/commerce.go.bom"
-  # contexts, objects, interfaces, and relationships...
-end
-```
-
-The `.go.bom` maps each Go source file to exactly one private module. Named
-entrypoints are bound to their implementation files there too:
-
-```go.bom
-map Commerce do
-  "internal/orders/order.go" -> Orders.Internal.Orders
-  entrypoint Commerce "cmd/commerce/main.go" -> App.Cmd.Commerce
-end
-```
-
-Imports are optional, and paths are resolved relative to the importing `.bo`.
-The Go checker requires every Go source file under the architecture implementation to
-appear exactly once in the imported map. Functions and ordinary language
-declarations may coexist in a mapped file; the architectural unit is the
-private module, not an individual Go function.
-
 Behaviors have explicit method names and may reference entities and values in
 their language-neutral signatures:
 
@@ -145,32 +91,32 @@ end
 ```
 
 The architecture declares its implementation language and source root once.
-Contexts and interfaces remain language-neutral, while the `.bom` map provides
-the precise ownership of each source file:
+Contexts and interfaces remain language-neutral, while module `file`
+declarations provide the precise ownership of each source file:
 
 ```bo
 architecture GitHubDaily do
   implementation go "./"
-  import "github-daily.go.bom"
 
   context Reporting do
-    interface GithubActivity do
+    interface GitHubActivity do
       behavior organizations() returns Organization[]
     end
-    exposes GithubActivity
+    exposes GitHubActivity
 
     module Reporting do
       module Activity do
-        implements GithubActivity
+        implements GitHubActivity
 
-        module Github do
-          uses GithubActivity
+        module GitHub do
+          uses GitHubActivity
+          files [:client]
         end
       end
 
       module DailyReport do
-        uses GithubActivity
-        entrypoint GithubDaily
+        uses GitHubActivity
+        entrypoint GitHubDaily
       end
     end
   end
@@ -182,14 +128,11 @@ Module names conventionally produce snake-case folders, so the example declares
 `implements` binds private code to a public contract, while `uses` permits a
 dependency on an interface or another private module. Nested source folders
 must have matching nested module declarations. The Go backend conventionally
-resolves `entrypoint GithubDaily` beneath `cmd/github-daily`.
+resolves `entrypoint GitHubDaily` beneath `command/main.go`.
 
 ## Try it
 
 ```sh
-go run ./cmd/bound check --root examples/commerce examples/commerce.bo
-go run ./cmd/bound render examples/commerce.bo
-(cd examples/commerce && go test ./... && go run ./cmd/commerce)
 go test ./...
 ```
 
@@ -201,15 +144,13 @@ The Go backend resolves the single implementation locator relative to the
 analyzed source root. Standard-library and third-party imports are ignored;
 cross-context imports must have a declared relationship in the `.bo` model.
 
-Interfaces are architecture contracts, not tied to one implementation language. A Go backend can realize them as ordinary Go interfaces, as shown in `examples/commerce/internal/orders/order.go` and `examples/commerce/internal/customers/customer.go`.
-
 ## GitHub daily activity example
 
 The `examples/github-daily` program is declared by [`github-daily.bo`](examples/github-daily/github-daily.bo). It discovers all organizations visible to the authenticated GitHub user, reads each organization's activity sources for the last 24 hours, and writes a Markdown report. The program validates that `.bo` architecture before it runs.
 
 ```sh
-go run ./examples/github-daily/reporting/daily_report/cmd/github-daily
-go run ./examples/github-daily/reporting/daily_report/cmd/github-daily -since 48h -output -
+go run ./examples/github-daily/reporting/daily_report/command
+go run ./examples/github-daily/reporting/daily_report/command -since 48h -output -
 ```
 
 Authentication uses `GITHUB_TOKEN` when set, otherwise the token from `gh auth token`. Reports are written to `reports/github-activity-YYYY-MM-DD.md` by default.
@@ -230,9 +171,10 @@ github-daily/
     │   └── github/   # GitHub API client and activity sources
     └── daily_report/
         ├── report.go # report behavior
-        └── cmd/      # conventional named entrypoint
+        └── command/  # conventional named entrypoint
 ```
 
-The `.go.bom` maps each file to its qualified private module. The checker
-enforces the conventional module folders and rejects imports that lack a
-matching `uses` declaration.
+The checker requires every Go source file to have exactly one module
+declaration, enforces the conventional module folders, and rejects imports
+that lack a matching `uses` declaration. Legacy `.bom` maps remain supported
+for imported architectures.
