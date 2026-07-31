@@ -10,6 +10,20 @@ type Architecture struct {
 	Relations      []Relation
 	Files          []FileMapping
 	Imports        []Import
+	Quality        QualityPolicy
+}
+
+type QualityPolicy struct {
+	MaxFunctionLines        int
+	MaxCyclomaticComplexity int
+	MaxNestingDepth         int
+	MaxParameters           int
+	MaxFileLines            int
+	Rules                   QualityRules
+}
+
+type QualityRules struct {
+	OneDeclarationKindPerFile bool
 }
 
 type Module struct {
@@ -25,8 +39,9 @@ type Module struct {
 }
 
 type Import struct {
-	Kind string
-	Path string
+	Symbol string
+	Kind   string
+	Path   string
 }
 
 // FileMapping assigns one implementation source file to one architecture context.
@@ -35,6 +50,8 @@ type FileMapping struct {
 	Node           string
 	EntryPoint     bool
 	EntryPointName string
+	Explicit       bool
+	RootEntrypoint bool
 }
 
 type Context struct {

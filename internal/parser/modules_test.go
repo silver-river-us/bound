@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/silver-river-us/bound/internal/model"
+	"bound/internal/model"
 )
 
 func TestNestedModulesDeclareContractsDependenciesAndEntrypoints(t *testing.T) {
@@ -59,6 +59,30 @@ end
 	}}
 	if err := architecture.Validate(); err != nil {
 		t.Fatalf("validate architecture: %v", err)
+	}
+}
+
+func TestArchitectureEntrypointDerivesRootImplementationFile(t *testing.T) {
+	architecture, err := Parse(strings.NewReader(`
+architecture Example do
+  implementation go "./"
+  entrypoint :main
+  context Reporting do
+  end
+end
+`))
+	if err != nil {
+		t.Fatalf("parse architecture: %v", err)
+	}
+	if err := architecture.Validate(); err != nil {
+		t.Fatalf("validate architecture: %v", err)
+	}
+	if len(architecture.Files) != 1 {
+		t.Fatalf("files = %#v, want one root entrypoint", architecture.Files)
+	}
+	entrypoint := architecture.Files[0]
+	if !entrypoint.RootEntrypoint || !entrypoint.Explicit || entrypoint.Node != "" || entrypoint.Path != "main.go" {
+		t.Fatalf("entrypoint mapping = %#v, want root main.go", entrypoint)
 	}
 }
 

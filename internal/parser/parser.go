@@ -7,22 +7,27 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
-	"github.com/silver-river-us/bound/internal/model"
+	"bound/internal/model"
 )
 
 var (
 	architectureRE   = regexp.MustCompile(`^architecture\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	domainRE         = regexp.MustCompile(`^(entity|value)\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	moduleRE         = regexp.MustCompile(`^module\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
+	rootEntrypointRE = regexp.MustCompile(`^entrypoint\s+:([A-Za-z_][A-Za-z0-9_]*)$`)
+	qualityRE        = regexp.MustCompile(`^quality\s+do$`)
+	qualityRuleRE    = regexp.MustCompile(`^(max_function_lines|max_cyclomatic_complexity|max_nesting_depth|max_parameters|max_file_lines)\s+([0-9]+)$`)
+	qualityRulesRE   = regexp.MustCompile(`^rules\s+do$`)
 	implementsRE     = regexp.MustCompile(`^implements\s+([A-Za-z_][A-Za-z0-9_.]*)$`)
 	usesRE           = regexp.MustCompile(`^uses\s+([A-Za-z_][A-Za-z0-9_.]*)$`)
 	entrypointRE     = regexp.MustCompile(`^entrypoint\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+"([^"]+)")?$`)
 	fileRE           = regexp.MustCompile(`^file\s+:([A-Za-z_][A-Za-z0-9_]*)$`)
 	filesRE          = regexp.MustCompile(`^files\s+\[([^]]*)\]$`)
 	stateRE          = regexp.MustCompile(`^state\s+:([A-Za-z_][A-Za-z0-9_]*)\s+:([A-Za-z_][A-Za-z0-9_.]*(?:\[\])?)$`)
-	importRE         = regexp.MustCompile(`^import\s+(contracts|map)\s+from\s+"([^"]+)"$`)
+	importRE         = regexp.MustCompile(`^import\s+([A-Za-z_][A-Za-z0-9_]*)\s+from\s+"([^"]*)"$`)
 	contextRE        = regexp.MustCompile(`^context\s+([A-Za-z_][A-Za-z0-9_]*)\s+do$`)
 	implementationRE = regexp.MustCompile(`^implementation\s+([A-Za-z_][A-Za-z0-9_+-]*)\s+"([^"]+)"$`)
 	exposesRE        = regexp.MustCompile(`^exposes\s+([A-Za-z_][A-Za-z0-9_]*)$`)
@@ -38,6 +43,8 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 	var currentInterface *model.Interface
 	var currentObject *model.Object
 	var moduleStack []*model.Module
+	insideQuality := false
+	insideQualityRules := false
 	pendingDescription := ""
 	lineNumber := 0
 	for scanner.Scan() {
@@ -52,6 +59,48 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 				return nil, err
 			}
 			pendingDescription = description
+			continue
+		}
+		if insideQualityRules {
+			if line == "end" {
+				insideQualityRules = false
+				continue
+			}
+			if line != "one_declaration_kind_per_file" {
+				return nil, syntaxError(lineNumber, "expected quality rule or end")
+			}
+			architecture.Quality.Rules.OneDeclarationKindPerFile = true
+			continue
+		}
+		if insideQuality {
+			if line == "end" {
+				insideQuality = false
+				continue
+			}
+			if qualityRulesRE.MatchString(line) {
+				insideQualityRules = true
+				continue
+			}
+			match := qualityRuleRE.FindStringSubmatch(line)
+			if match == nil {
+				return nil, syntaxError(lineNumber, "expected quality rule or end")
+			}
+			value, err := strconv.Atoi(match[2])
+			if err != nil || value < 1 {
+				return nil, syntaxError(lineNumber, "quality limits must be positive integers")
+			}
+			switch match[1] {
+			case "max_function_lines":
+				architecture.Quality.MaxFunctionLines = value
+			case "max_cyclomatic_complexity":
+				architecture.Quality.MaxCyclomaticComplexity = value
+			case "max_nesting_depth":
+				architecture.Quality.MaxNestingDepth = value
+			case "max_parameters":
+				architecture.Quality.MaxParameters = value
+			case "max_file_lines":
+				architecture.Quality.MaxFileLines = value
+			}
 			continue
 		}
 		if architecture == nil {
@@ -110,11 +159,28 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 			if match := implementationRE.FindStringSubmatch(line); match != nil {
 				return nil, syntaxError(lineNumber, "duplicate implementation")
 			}
+			if match := rootEntrypointRE.FindStringSubmatch(line); match != nil {
+				architecture.Files = append(architecture.Files, model.FileMapping{
+					EntryPoint:     true,
+					EntryPointName: match[1],
+					Explicit:       true,
+					RootEntrypoint: true,
+				})
+				continue
+			}
+			if qualityRE.MatchString(line) {
+				insideQuality = true
+				continue
+			}
 			if match := importRE.FindStringSubmatch(line); match != nil {
-				if err := validateImportKind(match[1], match[2]); err != nil {
+				if err := validateImportPath(match[2]); err != nil {
 					return nil, syntaxError(lineNumber, err.Error())
 				}
-				architecture.Imports = append(architecture.Imports, model.Import{Kind: match[1], Path: match[2]})
+				kind, err := importKind(match[2])
+				if err != nil {
+					return nil, syntaxError(lineNumber, err.Error())
+				}
+				architecture.Imports = append(architecture.Imports, model.Import{Symbol: match[1], Kind: kind, Path: match[2]})
 				continue
 			}
 			if match := domainRE.FindStringSubmatch(line); match != nil {
@@ -222,6 +288,7 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 						Node:           module.Qualified,
 						EntryPoint:     true,
 						EntryPointName: match[1],
+						Explicit:       true,
 					})
 				}
 				continue
@@ -235,10 +302,14 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 		switch {
 		case importRE.MatchString(line):
 			match := importRE.FindStringSubmatch(line)
-			if err := validateImportKind(match[1], match[2]); err != nil {
+			if err := validateImportPath(match[2]); err != nil {
 				return nil, syntaxError(lineNumber, err.Error())
 			}
-			current.Imports = append(current.Imports, model.Import{Kind: match[1], Path: match[2]})
+			kind, err := importKind(match[2])
+			if err != nil {
+				return nil, syntaxError(lineNumber, err.Error())
+			}
+			current.Imports = append(current.Imports, model.Import{Symbol: match[1], Kind: kind, Path: match[2]})
 		case exposesRE.MatchString(line):
 			current.Exposes[exposesRE.FindStringSubmatch(line)[1]] = true
 		case interfaceRE.MatchString(line):
@@ -265,6 +336,12 @@ func Parse(r io.Reader) (*model.Architecture, error) {
 	}
 	if architecture == nil {
 		return nil, fmt.Errorf("empty Bound document")
+	}
+	if insideQualityRules {
+		return nil, fmt.Errorf("line %d: unclosed quality rules", lineNumber)
+	}
+	if insideQuality {
+		return nil, fmt.Errorf("line %d: unclosed quality policy", lineNumber)
 	}
 	if currentObject != nil {
 		return nil, fmt.Errorf("line %d: unclosed domain type %s", lineNumber, currentObject.Name)
@@ -316,11 +393,27 @@ func parseFileAtoms(source string) ([]string, error) {
 	return files, nil
 }
 
-func validateImportKind(kind, importPath string) error {
-	extension := filepath.Ext(importPath)
-	want := map[string]string{"contracts": ".bo", "map": ".bom"}[kind]
-	if extension != want {
-		return fmt.Errorf("%s import %q must target a %s file", kind, importPath, want)
+func importKind(importPath string) (string, error) {
+	switch filepath.Ext(importPath) {
+	case ".bo":
+		return "contracts", nil
+	case ".bom":
+		return "map", nil
+	default:
+		return "", fmt.Errorf("import %q must target a .bo or .bom file", importPath)
+	}
+}
+
+func validateImportPath(importPath string) error {
+	if importPath == "" {
+		return fmt.Errorf("import path cannot be empty")
+	}
+	if filepath.IsAbs(importPath) {
+		return fmt.Errorf("import path %q must be relative", importPath)
+	}
+	clean := filepath.Clean(importPath)
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("import path %q must stay within the source tree", importPath)
 	}
 	return nil
 }
@@ -414,7 +507,7 @@ func ParseMap(r io.Reader) (string, []model.FileMapping, error) {
 			continue
 		}
 		if match := entrypointFileRE.FindStringSubmatch(line); match != nil {
-			files = append(files, model.FileMapping{Path: match[2], Node: match[3], EntryPoint: true, EntryPointName: match[1]})
+			files = append(files, model.FileMapping{Path: match[2], Node: match[3], EntryPoint: true, EntryPointName: match[1], Explicit: true})
 			continue
 		}
 		return "", nil, syntaxError(lineNumber, "expected file mapping, entrypoint, or end")
@@ -452,10 +545,10 @@ func parseFile(path string, visiting map[string]bool) (*model.Architecture, erro
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
-	for _, imported := range architecture.Imports {
-		importPath := imported.Path
+	for _, declaration := range architecture.Imports {
+		importPath := declaration.Path
 		importedPath := filepath.Join(filepath.Dir(absPath), importPath)
-		if imported.Kind == "map" {
+		if declaration.Kind == "map" {
 			mapFile, err := os.Open(importedPath)
 			if err != nil {
 				return nil, fmt.Errorf("open import %s: %w", importPath, err)
@@ -465,8 +558,8 @@ func parseFile(path string, visiting map[string]bool) (*model.Architecture, erro
 			if parseErr != nil {
 				return nil, fmt.Errorf("parse import %s: %w", importPath, parseErr)
 			}
-			if mapName != architecture.Name {
-				return nil, fmt.Errorf("map %s belongs to %s, expected %s", importPath, mapName, architecture.Name)
+			if mapName != declaration.Symbol {
+				return nil, fmt.Errorf("map %s defines %s, imported as %s", importPath, mapName, declaration.Symbol)
 			}
 			architecture.Files = append(architecture.Files, files...)
 			continue
@@ -475,6 +568,9 @@ func parseFile(path string, visiting map[string]bool) (*model.Architecture, erro
 		if err != nil {
 			return nil, err
 		}
+		if imported.Name != declaration.Symbol {
+			return nil, fmt.Errorf("architecture %s defines %s, imported as %s", importPath, imported.Name, declaration.Symbol)
+		}
 		if err := merge(architecture, imported); err != nil {
 			return nil, fmt.Errorf("import %s: %w", importPath, err)
 		}
@@ -482,9 +578,12 @@ func parseFile(path string, visiting map[string]bool) (*model.Architecture, erro
 	fragmentVisiting := map[string]bool{}
 	for _, context := range architecture.Contexts {
 		for _, imported := range context.Imports {
+			if imported.Kind != "contracts" {
+				return nil, fmt.Errorf("context %s can only import .bo contract fragments, got %s", context.Name, imported.Path)
+			}
 			importPath := imported.Path
 			importedPath := filepath.Join(filepath.Dir(absPath), importPath)
-			if err := loadContextFragment(importedPath, context, fragmentVisiting); err != nil {
+			if err := loadContextFragment(importedPath, imported.Symbol, context, fragmentVisiting); err != nil {
 				return nil, fmt.Errorf("context %s import %s: %w", context.Name, importPath, err)
 			}
 		}
@@ -493,7 +592,7 @@ func parseFile(path string, visiting map[string]bool) (*model.Architecture, erro
 	return architecture, nil
 }
 
-func loadContextFragment(path string, target *model.Context, visiting map[string]bool) error {
+func loadContextFragment(path, contractName string, target *model.Context, visiting map[string]bool) error {
 	absolute, err := filepath.Abs(path)
 	if err != nil {
 		return err
@@ -518,14 +617,19 @@ func loadContextFragment(path string, target *model.Context, visiting map[string
 	if len(source.Modules) > 0 || len(source.Exposes) > 0 {
 		return fmt.Errorf("fragment %s may only contain imports and interfaces", path)
 	}
-	for name, contract := range source.Interfaces {
-		if _, exists := target.Interfaces[name]; exists {
-			return fmt.Errorf("duplicate interface %s", name)
-		}
-		target.Interfaces[name] = contract
+	contract, exists := source.Interfaces[contractName]
+	if !exists {
+		return fmt.Errorf("fragment %s does not define interface %s", path, contractName)
 	}
+	if _, exists := target.Interfaces[contractName]; exists {
+		return fmt.Errorf("duplicate interface %s", contractName)
+	}
+	target.Interfaces[contractName] = contract
 	for _, imported := range source.Imports {
-		if err := loadContextFragment(filepath.Join(filepath.Dir(absolute), imported.Path), target, visiting); err != nil {
+		if imported.Kind != "contracts" {
+			return fmt.Errorf("fragment %s can only import .bo contract fragments, got %s", path, imported.Path)
+		}
+		if err := loadContextFragment(filepath.Join(filepath.Dir(absolute), imported.Path), imported.Symbol, target, visiting); err != nil {
 			return fmt.Errorf("import %s: %w", imported.Path, err)
 		}
 	}

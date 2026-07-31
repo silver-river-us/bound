@@ -7,9 +7,9 @@ import (
 
 func ConventionalFolder(name string) string {
 	specialFolders := map[string]string{
-		"Command":     "command",
-		"GitHub":      "github",
-		"GitHubDaily": "github-daily",
+		"Command":        "command",
+		"GitHub":         "github",
+		"GitHubActivity": "github-activity",
 	}
 	if folder, ok := specialFolders[name]; ok {
 		return folder

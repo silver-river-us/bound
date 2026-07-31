@@ -1,4 +1,4 @@
-package dailyreport
+package reporting
 
 import "strings"
 

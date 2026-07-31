@@ -3,13 +3,17 @@ package analyze
 import (
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	goparser "go/parser"
+	"go/token"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
-	"github.com/silver-river-us/bound/internal/model"
+	"bound/internal/model"
 )
 
 type goPackage struct {
@@ -82,6 +86,9 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 		location := moduleLocation(implementationRoot, architecture, module)
 		info, statErr := os.Stat(location)
 		if statErr != nil {
+			if os.IsNotExist(statErr) && moduleHasOnlyExplicitEntrypoints(architecture, module) {
+				continue
+			}
 			return fmt.Errorf("module %s folder %s: %w", module.Qualified, filepath.ToSlash(location), statErr)
 		}
 		if !info.IsDir() {
@@ -89,13 +96,13 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 		}
 	}
 	for _, mapping := range architecture.Files {
-		if mapping.Node == "" {
+		if mapping.Node == "" && !mapping.RootEntrypoint {
 			return fmt.Errorf("file %s has no architecture node", mapping.Path)
 		}
 		if _, exists := mappings[mapping.Path]; exists {
 			return fmt.Errorf("file %s is mapped more than once", mapping.Path)
 		}
-		if architecture.Modules[mapping.Node] == nil {
+		if architecture.Modules[mapping.Node] == nil && !mapping.RootEntrypoint {
 			return fmt.Errorf("file %s maps to non-module %s", mapping.Path, mapping.Node)
 		}
 		absolute := filepath.Join(root, filepath.FromSlash(mapping.Path))
@@ -111,14 +118,16 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 		}
 		if module := architecture.Modules[mapping.Node]; module != nil {
 			location := moduleLocation(implementationRoot, architecture, module)
-			if !within(absolute, location) {
-				return fmt.Errorf("mapped file %s is outside module %s folder %s", mapping.Path, mapping.Node, filepath.ToSlash(location))
+			if !mapping.Explicit {
+				if !within(absolute, location) {
+					return fmt.Errorf("mapped file %s is outside module %s folder %s", mapping.Path, mapping.Node, filepath.ToSlash(location))
+				}
+				fileDirectory := filepath.Dir(absolute)
+				if fileDirectory != location && !withinModuleEntrypoint(fileDirectory, location, module) {
+					return fmt.Errorf("mapped file %s is in an undeclared submodule folder", mapping.Path)
+				}
 			}
-			fileDirectory := filepath.Dir(absolute)
-			if fileDirectory != location && !withinModuleEntrypoint(fileDirectory, location, module) {
-				return fmt.Errorf("mapped file %s is in an undeclared submodule folder", mapping.Path)
-			}
-			if mapping.EntryPoint {
+			if mapping.EntryPoint && !mapping.Explicit {
 				expected := filepath.Join(location, "cmd", model.ConventionalEntrypoint(mapping.EntryPointName), "main.go")
 				if model.ConventionalFolder(module.Name) == "command" {
 					expected = filepath.Join(location, "main.go")
@@ -131,6 +140,9 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 			}
 		}
 		mappings[mapping.Path] = mapping
+	}
+	if err := validateGoQuality(root, architecture, mappings); err != nil {
+		return err
 	}
 	return filepath.WalkDir(implementationRoot, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -151,10 +163,204 @@ func validateGoFiles(root string, architecture *model.Architecture) error {
 		}
 		relative = filepath.ToSlash(relative)
 		if _, ok := mappings[relative]; !ok {
+			owned := false
+			for _, module := range architecture.Modules {
+				if within(path, moduleLocation(implementationRoot, architecture, module)) {
+					owned = true
+					break
+				}
+			}
+			if !owned {
+				return nil
+			}
 			return fmt.Errorf("Go source file %s has no architecture mapping", relative)
 		}
 		return nil
 	})
+}
+
+type functionMetrics struct {
+	complexity int
+	maxNesting int
+}
+
+type complexityVisitor struct {
+	complexity int
+	depth      int
+	maxDepth   int
+	controls   []bool
+}
+
+func validateGoQuality(root string, architecture *model.Architecture, mappings map[string]model.FileMapping) error {
+	policy := architecture.Quality
+	if policy.MaxFunctionLines == 0 && policy.MaxCyclomaticComplexity == 0 && policy.MaxNestingDepth == 0 && policy.MaxParameters == 0 && policy.MaxFileLines == 0 && !policy.Rules.OneDeclarationKindPerFile {
+		return nil
+	}
+
+	paths := make([]string, 0, len(mappings))
+	for path := range mappings {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, relative := range paths {
+		path := filepath.Join(root, filepath.FromSlash(relative))
+		fileSet := token.NewFileSet()
+		file, err := goparser.ParseFile(fileSet, path, nil, 0)
+		if err != nil {
+			return fmt.Errorf("parse mapped Go file %s: %w", relative, err)
+		}
+		if policy.Rules.OneDeclarationKindPerFile {
+			if err := validateDeclarationKinds(relative, file); err != nil {
+				return err
+			}
+		}
+		fileLines := fileSet.Position(file.End()).Line - fileSet.Position(file.Pos()).Line + 1
+		if policy.MaxFileLines > 0 && fileLines > policy.MaxFileLines {
+			return fmt.Errorf("quality violation in %s: file is %d lines, limit %d", relative, fileLines, policy.MaxFileLines)
+		}
+		var violation error
+		ast.Inspect(file, func(node ast.Node) bool {
+			if violation != nil {
+				return false
+			}
+			function, ok := node.(*ast.FuncDecl)
+			if !ok || function.Body == nil {
+				return true
+			}
+			line := fileSet.Position(function.Pos()).Line
+			name := function.Name.Name
+			functionLines := fileSet.Position(function.End()).Line - line + 1
+			if policy.MaxFunctionLines > 0 && functionLines > policy.MaxFunctionLines {
+				violation = fmt.Errorf("quality violation in %s:%d: function %s is %d lines, limit %d", relative, line, name, functionLines, policy.MaxFunctionLines)
+				return false
+			}
+			parameters := parameterCount(function.Type.Params)
+			if policy.MaxParameters > 0 && parameters > policy.MaxParameters {
+				violation = fmt.Errorf("quality violation in %s:%d: function %s has %d parameters, limit %d", relative, line, name, parameters, policy.MaxParameters)
+				return false
+			}
+			metrics := measureFunction(function.Body)
+			if policy.MaxCyclomaticComplexity > 0 && metrics.complexity > policy.MaxCyclomaticComplexity {
+				violation = fmt.Errorf("quality violation in %s:%d: function %s has cyclomatic complexity %d, limit %d", relative, line, name, metrics.complexity, policy.MaxCyclomaticComplexity)
+				return false
+			}
+			if policy.MaxNestingDepth > 0 && metrics.maxNesting > policy.MaxNestingDepth {
+				violation = fmt.Errorf("quality violation in %s:%d: function %s has nesting depth %d, limit %d", relative, line, name, metrics.maxNesting, policy.MaxNestingDepth)
+				return false
+			}
+			return false
+		})
+		if violation != nil {
+			return violation
+		}
+	}
+	return nil
+}
+
+func validateDeclarationKinds(relative string, file *ast.File) error {
+	kinds := map[string]bool{}
+	for _, declaration := range file.Decls {
+		switch declaration := declaration.(type) {
+		case *ast.FuncDecl:
+			kinds["functions"] = true
+		case *ast.GenDecl:
+			switch declaration.Tok {
+			case token.TYPE:
+				kinds["types"] = true
+			case token.CONST:
+				kinds["constants"] = true
+			case token.VAR:
+				kinds["variables"] = true
+			}
+		}
+	}
+	if len(kinds) <= 1 {
+		return nil
+	}
+	names := make([]string, 0, len(kinds))
+	for kind := range kinds {
+		names = append(names, kind)
+	}
+	sort.Strings(names)
+	return fmt.Errorf("quality violation in %s: file mixes top-level declaration kinds (%s)", relative, strings.Join(names, ", "))
+}
+
+func parameterCount(fieldList *ast.FieldList) int {
+	if fieldList == nil {
+		return 0
+	}
+	count := 0
+	for _, field := range fieldList.List {
+		if len(field.Names) == 0 {
+			count++
+			continue
+		}
+		count += len(field.Names)
+	}
+	return count
+}
+
+func measureFunction(body *ast.BlockStmt) functionMetrics {
+	visitor := &complexityVisitor{complexity: 1}
+	ast.Walk(visitor, body)
+	return functionMetrics{complexity: visitor.complexity, maxNesting: visitor.maxDepth}
+}
+
+func (visitor *complexityVisitor) Visit(node ast.Node) ast.Visitor {
+	if node == nil {
+		last := len(visitor.controls) - 1
+		if last >= 0 {
+			if visitor.controls[last] {
+				visitor.depth--
+			}
+			visitor.controls = visitor.controls[:last]
+		}
+		return visitor
+	}
+
+	control := isControlNode(node)
+	if control {
+		visitor.complexity++
+		visitor.depth++
+		if visitor.depth > visitor.maxDepth {
+			visitor.maxDepth = visitor.depth
+		}
+	}
+	if binary, ok := node.(*ast.BinaryExpr); ok && (binary.Op.String() == "&&" || binary.Op.String() == "||") {
+		visitor.complexity++
+	}
+	visitor.controls = append(visitor.controls, control)
+	return visitor
+}
+
+func isControlNode(node ast.Node) bool {
+	switch node.(type) {
+	case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.SelectStmt, *ast.CaseClause, *ast.CommClause:
+		return true
+	default:
+		return false
+	}
+}
+
+func moduleHasOnlyExplicitEntrypoints(architecture *model.Architecture, module *model.Module) bool {
+	if len(module.Entrypoints) == 0 {
+		return false
+	}
+	for entrypoint := range module.Entrypoints {
+		found := false
+		for _, mapping := range architecture.Files {
+			if mapping.Node == module.Qualified && mapping.EntryPointName == entrypoint {
+				if !mapping.Explicit {
+					return false
+				}
+				found = true
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }
 
 func withinModuleEntrypoint(directory, location string, module *model.Module) bool {

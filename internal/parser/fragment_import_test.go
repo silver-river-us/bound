@@ -19,12 +19,14 @@ interface Reports do
   end
   behavior render(snapshot Snapshot) returns string
 end
+interface Unrequested do
+end
 `)
 	writeTestFile(t, architecturePath, `
 architecture Example do
   implementation go "./"
   context Reporting do
-    import contracts from "reports.bo"
+    import Reports from "reports.bo"
     exposes Reports
   end
 end
@@ -37,6 +39,9 @@ end
 	contract := architecture.Contexts["Reporting"].Interfaces["Reports"]
 	if contract == nil || contract.Types["Snapshot"] == nil {
 		t.Fatal("imported interface contract was not merged into its context")
+	}
+	if _, exists := architecture.Contexts["Reporting"].Interfaces["Unrequested"]; exists {
+		t.Fatal("unrequested interface was imported")
 	}
 	if err := architecture.Validate(); err != nil {
 		t.Fatalf("validate architecture: %v", err)
@@ -54,7 +59,7 @@ interface Types do
 end
 `)
 	writeTestFile(t, filepath.Join(directory, "reports.bo"), `
-import contracts from "types.bo"
+import Types from "types.bo"
 interface Reports do
   behavior find(id Types.Identifier) returns string
 end
@@ -63,7 +68,7 @@ end
 architecture Example do
   implementation go "./"
   context Reporting do
-    import contracts from "reports.bo"
+    import Reports from "reports.bo"
     exposes Reports
   end
 end
@@ -89,7 +94,7 @@ end
 architecture Example do
   implementation go "./"
   context Reporting do
-    import contracts from "invalid.bo"
+    import Invalid from "invalid.bo"
   end
 end
 `)
@@ -97,6 +102,24 @@ end
 	_, err := ParseFile(architecturePath)
 	if err == nil || !strings.Contains(err.Error(), "may only contain imports and interfaces") {
 		t.Fatalf("error = %v, want fragment module rejection", err)
+	}
+}
+
+func TestContextImportRejectsUnknownInterface(t *testing.T) {
+	directory := t.TempDir()
+	writeTestFile(t, filepath.Join(directory, "reports.bo"), "interface Reports do\nend\n")
+	writeTestFile(t, filepath.Join(directory, "example.bo"), `
+architecture Example do
+  implementation go "./"
+  context Reporting do
+    import Missing from "reports.bo"
+  end
+end
+`)
+
+	_, err := ParseFile(filepath.Join(directory, "example.bo"))
+	if err == nil || !strings.Contains(err.Error(), "does not define interface Missing") {
+		t.Fatalf("error = %v, want missing imported interface", err)
 	}
 }
 

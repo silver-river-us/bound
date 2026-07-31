@@ -56,13 +56,18 @@ context that owns them:
 ```bo
 # reporting.bo
 context Reporting do
-  import contracts from "contracts/github_activity.bo"
-  import contracts from "contracts/daily_report.bo"
+  import GitHubActivity from "contracts/github_activity.bo"
+  import DailyReport from "contracts/daily_report.bo"
 
   exposes GitHubActivity
   exposes DailyReport
 end
 ```
+
+The name before `from` is the exact symbol being imported. A contract fragment
+may define several interfaces, but each import selects one interface by name.
+Architecture-level `.bo` and `.bom` imports use the same rule: the imported
+name must match the architecture or map declared by the file.
 
 ```bo
 # contracts/github_activity.bo
@@ -79,7 +84,8 @@ end
 Interface fragments may contain documentation, interfaces, their entities and
 values, behaviors, and other relative fragment imports. Contexts, modules,
 relationships, implementation metadata, and source maps remain in the main
-architecture so its structural and data-flow view stays visible.
+architecture so its structural and data-flow view stays visible. Fragment
+imports are also named and resolve only the requested interface.
 
 Behaviors have explicit method names and may reference entities and values in
 their language-neutral signatures:
@@ -95,28 +101,35 @@ Contexts and interfaces remain language-neutral, while module `file`
 declarations provide the precise ownership of each source file:
 
 ```bo
-architecture GitHubDaily do
+architecture GitHubActivity do
   implementation go "./"
+  entrypoint :main
 
-  context Reporting do
-    interface GitHubActivity do
-      behavior organizations() returns Organization[]
+  context Boundary do
+    module Boundary do
+      module CLI do
+        uses Lib.ReportingApplication
+      end
     end
-    exposes GitHubActivity
+  end
 
-    module Reporting do
+  context Infrastructure do
+    module Infrastructure do
+      module GitHub do
+        implements GitHubActivity
+      end
+    end
+  end
+
+  context Lib do
+    module Lib do
       module Activity do
         implements GitHubActivity
-
-        module GitHub do
-          uses GitHubActivity
-          files [:client]
-        end
       end
-
-      module DailyReport do
+      module Reporting do
+        implements ReportingApplication
         uses GitHubActivity
-        entrypoint GitHubDaily
+        uses DailyReport
       end
     end
   end
@@ -124,17 +137,58 @@ end
 ```
 
 Module names conventionally produce snake-case folders, so the example declares
-`reporting/activity/github` without embedding paths in the DSL.
+`boundary/cli`, `infrastructure/github`, `lib/activity`, and
+`lib/reporting` without embedding paths in the DSL.
 `implements` binds private code to a public contract, while `uses` permits a
 dependency on an interface or another private module. Nested source folders
-must have matching nested module declarations. The Go backend conventionally
-resolves `entrypoint GitHubDaily` beneath `command/main.go`.
+must have matching nested module declarations. The architecture-level
+`entrypoint :main` derives `main.go` from the target language and keeps the
+executable outside the component module tree.
+
+The example uses three explicit contexts as a screaming architecture:
+`Boundary` contains replaceable user interfaces, `Infrastructure` contains
+external-system adapters and parsing, and `Lib` contains the `Activity` and
+`Reporting` bounded contexts plus their use-case orchestration.
+The lib returns structured reporting data; Markdown rendering, stdout/file
+output, and operational logging remain in the CLI boundary.
+
+Architecture files can also enforce implementation quality limits. Limits are
+disabled when omitted; each declared limit must be a positive integer:
+
+```bo
+quality do
+  max_function_lines 15
+  max_cyclomatic_complexity 10
+  max_nesting_depth 4
+  max_parameters 5
+  max_file_lines 200
+  rules do
+    one_declaration_kind_per_file
+  end
+end
+```
+
+The Go analyzer reports the source file and function when a mapped file exceeds
+its file-length limit or a function exceeds its line, cyclomatic-complexity,
+nesting-depth, or parameter limit. The declaration rule keeps top-level types,
+functions, constants, and variables from being mixed in one source file.
 
 ## Try it
 
 ```sh
 go test ./...
 ```
+
+Generate a Markdown architecture report with Mermaid diagrams:
+
+```sh
+bound mermaid examples/github-activity/github-activity.bo
+bound mermaid -o docs/github-activity.md examples/github-activity/github-activity.bo
+```
+
+Without `-o`, the report is written beside the `.bo` file with the same base
+name and a `.md` extension. The report includes context, component, interaction,
+contract/module, and source-ownership views.
 
 The architecture model is intentionally independent of implementation
 languages. Backends translate module and entrypoint names into their native
@@ -146,14 +200,14 @@ cross-context imports must have a declared relationship in the `.bo` model.
 
 ## GitHub daily activity example
 
-The `examples/github-daily` program is declared by [`github-daily.bo`](examples/github-daily/github-daily.bo). It discovers all organizations visible to the authenticated GitHub user, reads each organization's activity sources for the last 24 hours, and writes a Markdown report. The program validates that `.bo` architecture before it runs.
+The `examples/github-activity` program is declared by [`github-activity.bo`](examples/github-activity/github-activity.bo). It discovers all organizations visible to the authenticated GitHub user, reads each organization's activity sources for a configurable period, and writes a Markdown report. The program validates that `.bo` architecture before it runs.
 
 ```sh
-go run ./examples/github-daily/reporting/daily_report/command
-go run ./examples/github-daily/reporting/daily_report/command -since 48h -output -
+go run ./examples/github-activity
+go run ./examples/github-activity -period 48h -output -
 ```
 
-Authentication uses `GITHUB_TOKEN` when set, otherwise the token from `gh auth token`. Reports are written to `reports/github-activity-YYYY-MM-DD.md` by default.
+Authentication uses `GITHUB_TOKEN` when set, otherwise the token from `gh auth token`. Reports are written to `examples/github-activity/reports/github-activity-YYYY-MM-DD.md` by default.
 
 The report combines three GitHub sources: organization events, commit search,
 and issue/pull-request search. The latter represents an updated issue or pull
@@ -161,17 +215,18 @@ request, not every individual comment or review actor. GitHub audit-log access
 is organization-admin scoped, so the program reports everything available to
 the authenticated token rather than claiming universal private-audit coverage.
 
-The implementation namespace follows the architecture:
+The executable lives at the example root, while the implementation packages
+follow the architecture:
 
 ```text
-github-daily/
-└── reporting/
-    ├── activity/
-    │   ├── *.go      # organizations, events, activities, search results
-    │   └── github/   # GitHub API client and activity sources
-    └── daily_report/
-        ├── report.go # report behavior
-        └── command/  # conventional named entrypoint
+bound/
+└── examples/github-activity/
+    ├── main.go
+    ├── boundary/cli/                 # CLI adapter
+    ├── infrastructure/github/        # HTTP client, JSON parsing, API adapter
+    └── lib/
+        ├── activity/                 # activity bounded context
+        └── reporting/                # report context and use-case orchestration
 ```
 
 The checker requires every Go source file to have exactly one module

@@ -47,7 +47,7 @@ func (a *Architecture) Validate() error {
 		if _, exists := files[file.Path]; exists {
 			return fmt.Errorf("file %s is mapped more than once", file.Path)
 		}
-		if a.Modules[file.Node] == nil {
+		if a.Modules[file.Node] == nil && !(file.RootEntrypoint && file.Node == "") {
 			return fmt.Errorf("file %s must map to a private module, got %s", file.Path, file.Node)
 		}
 		files[file.Path] = file
@@ -59,7 +59,10 @@ func (a *Architecture) Validate() error {
 		}
 		mapping := files[file.Path]
 		if mapping.Node == "" {
-			return fmt.Errorf("entry point %s must be mapped to a context", file.Path)
+			if mapping.RootEntrypoint {
+				continue
+			}
+			return fmt.Errorf("entry point %s must be mapped to a module", file.Path)
 		}
 		module := a.Modules[mapping.Node]
 		if module == nil || !module.Entrypoints[file.EntryPointName] {
@@ -161,6 +164,11 @@ func (a *Architecture) materializeModuleFiles() error {
 	extension, ok := implementationExtension(a.Implementation.Language)
 	if !ok {
 		return fmt.Errorf("unsupported implementation language %s", a.Implementation.Language)
+	}
+	for index := range a.Files {
+		if a.Files[index].RootEntrypoint {
+			a.Files[index].Path = filepath.ToSlash(a.Files[index].EntryPointName + extension)
+		}
 	}
 	mappedEntrypoints := make(map[string]bool)
 	for _, file := range a.Files {

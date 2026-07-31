@@ -1,3 +1,3 @@
-module github.com/silver-river-us/bound
+module bound
 
 go 1.22

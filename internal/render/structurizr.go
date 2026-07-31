@@ -1,8 +1,8 @@
 package render
 
 import (
+	"bound/internal/model"
 	"fmt"
-	"github.com/silver-river-us/bound/internal/model"
 	"sort"
 	"strings"
 )

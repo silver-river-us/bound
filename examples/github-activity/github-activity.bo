@@ -1,0 +1,77 @@
+"""
+The GitHub activity report is an executable architecture. Its names describe the
+business and technical responsibilities directly: a replaceable CLI boundary,
+an external-system infrastructure adapter, and a lib layer containing the
+activity and reporting bounded contexts.
+"""
+architecture GitHubActivity do
+  implementation go "."
+  entrypoint :main
+
+  quality do
+    max_function_lines 15
+    max_cyclomatic_complexity 10
+    max_nesting_depth 4
+    max_parameters 5
+    max_file_lines 200
+    rules do
+      one_declaration_kind_per_file
+    end
+  end
+
+  context Boundary do
+    import ReportingApplication from "contracts/reporting_application.bo"
+    import GitHubActivity from "contracts/github_activity.bo"
+    import DailyReport from "contracts/daily_report.bo"
+    exposes ReportingApplication
+    exposes DailyReport
+
+    module Boundary do
+      module CLI do
+        implements DailyReport
+        files [:cli, :fatal, :logger, :markdown, :options]
+        uses Lib.ReportingApplication
+        uses Lib.GitHubActivity
+        uses Infrastructure.GitHubActivity
+      end
+    end
+  end
+
+  context Infrastructure do
+    import GitHubActivity from "contracts/github_activity.bo"
+    exposes GitHubActivity
+
+    module Infrastructure do
+      module GitHub do
+        implements GitHubActivity
+        uses Lib.GitHubActivity
+        files [:activities, :auth, :client, :client_factory, :commit_activities, :constants, :event_activities, :first_line, :get, :http_client, :issue_activities, :organizations, :summarize]
+      end
+    end
+  end
+
+  context Lib do
+    import ReportingApplication from "contracts/reporting_application.bo"
+    import GitHubActivity from "contracts/github_activity.bo"
+    exposes ReportingApplication
+    exposes GitHubActivity
+
+    module Lib do
+      module Activity do
+        implements GitHubActivity
+        files [:activity, :activity_feed, :activity_source, :commit_result, :event, :issue_result, :organization, :search_response, :time_window]
+      end
+
+      module Reporting do
+        implements ReportingApplication
+        uses GitHubActivity
+        files [:human_actor, :report_result, :report_statistics, :reporting_snapshot, :service, :statistics]
+      end
+    end
+  end
+
+  Boundary -> Lib via ReportingApplication
+  Boundary -> Lib via GitHubActivity
+  Boundary -> Infrastructure via GitHubActivity
+  Infrastructure -> Lib via GitHubActivity
+end

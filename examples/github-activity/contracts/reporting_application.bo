@@ -1,0 +1,6 @@
+"""
+Runs the reporting use case for a requested activity window.
+"""
+interface ReportingApplication do
+  behavior generate(window string) returns string
+end
