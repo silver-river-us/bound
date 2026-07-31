@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bound Architecture Specs"
+  short_description: "Write rigorous Bound architecture specifications"
+  default_prompt: "Use $bound-architecture-specs to create or reverse-engineer a Bound architecture specification."
