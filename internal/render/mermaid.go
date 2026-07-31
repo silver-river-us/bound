@@ -188,7 +188,8 @@ func sourceDiagram(a *model.Architecture) string {
 		filesByModule[file.Node] = append(filesByModule[file.Node], file)
 	}
 	for _, name := range sortedModuleNamesAcrossArchitecture(a) {
-		fmt.Fprintf(&b, "  subgraph %s[\"%s\"]\n", mermaidID("source_module", name), mermaidText(name))
+		id, label := sourceOwner(a, name)
+		fmt.Fprintf(&b, "  subgraph %s[\"%s\"]\n", id, mermaidText(label))
 		b.WriteString("    direction TB\n")
 		for _, file := range filesByModule[name] {
 			label := filepath.Base(file.Path)
@@ -200,6 +201,13 @@ func sourceDiagram(a *model.Architecture) string {
 		b.WriteString("  end\n")
 	}
 	return b.String()
+}
+
+func sourceOwner(a *model.Architecture, name string) (string, string) {
+	if name == "" {
+		return mermaidID("source_module", "root"), a.Name + " (root)"
+	}
+	return mermaidID("source_module", name), name
 }
 
 func writeClass(b *strings.Builder, id, label, stereotype string) {

@@ -1,70 +1,74 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
-	"bound/internal/analyze"
-	"bound/internal/parser"
+	"bound/internal/compiler"
 	"bound/internal/render"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fail("usage: bound <check|render|mermaid> [--root path] [-output path] <file.bo>")
+		fail("usage: bound <compile|review> <file.bo>")
 	}
 	command := os.Args[1]
-	flags := flag.NewFlagSet(command, flag.ContinueOnError)
-	flags.SetOutput(os.Stderr)
-	root := flags.String("root", "", "source root to inspect with the Go backend")
-	output := flags.String("output", "", "Markdown output path for the mermaid command")
-	outputShort := flags.String("o", "", "short form of -output")
-	if err := flags.Parse(os.Args[2:]); err != nil {
-		fail(err.Error())
-	}
-	if flags.NArg() != 1 {
+	if len(os.Args) != 3 {
 		fail("expected exactly one .bo file")
 	}
-
-	a, err := parser.ParseFile(flags.Arg(0))
-	if err != nil {
-		fail(err.Error())
-	}
-	if err := a.Validate(); err != nil {
-		fail(err.Error())
-	}
+	architecturePath := os.Args[2]
 
 	switch command {
-	case "check":
-		if *root != "" {
-			if err := analyze.Go(filepath.Clean(*root), a); err != nil {
-				fail(err.Error())
-			}
+	case "compile":
+		program, err := compiler.Compile(architecturePath, compiler.Options{})
+		if err != nil {
+			fail(err.Error())
 		}
-		fmt.Printf("valid architecture %q (%d contexts, %d relationships)\n", a.Name, len(a.Contexts), len(a.Relations))
-	case "render":
-		fmt.Print(render.Structurizr(a))
-	case "mermaid":
-		outputPath := *output
-		if outputPath == "" {
-			outputPath = *outputShort
+		encoded, err := program.JSON()
+		if err != nil {
+			fail(fmt.Sprintf("encode compiler IR: %v", err))
 		}
-		if outputPath == "" {
-			outputPath = filepath.Join(filepath.Dir(flags.Arg(0)), strings.TrimSuffix(filepath.Base(flags.Arg(0)), filepath.Ext(flags.Arg(0)))+".md")
+		fmt.Println(string(encoded))
+	case "review":
+		program, err := compiler.Compile(architecturePath, compiler.Options{})
+		if err != nil {
+			fail(err.Error())
 		}
+		outputPath := filepath.Join(filepath.Dir(architecturePath), strings.TrimSuffix(filepath.Base(architecturePath), filepath.Ext(architecturePath))+".html")
 		if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
-			fail(fmt.Sprintf("create Mermaid output directory: %v", err))
+			fail(fmt.Sprintf("create HTML output directory: %v", err))
 		}
-		if err := os.WriteFile(outputPath, []byte(render.MermaidMarkdown(a)), 0o644); err != nil {
-			fail(fmt.Sprintf("write Mermaid Markdown: %v", err))
+		if err := os.WriteFile(outputPath, []byte(render.MermaidHTML(program.Architecture)), 0o644); err != nil {
+			fail(fmt.Sprintf("write HTML architecture review: %v", err))
 		}
-		fmt.Printf("wrote Mermaid Markdown to %s\n", outputPath)
+		if err := openReview(outputPath); err != nil {
+			fail(fmt.Sprintf("open HTML architecture review: %v (file written to %s)", err, outputPath))
+		}
+		fmt.Printf("opened HTML architecture review %s\n", outputPath)
 	default:
 		fail("unknown command: " + command)
 	}
+}
+
+func openReview(path string) error {
+	var command string
+	var arguments []string
+	switch runtime.GOOS {
+	case "darwin":
+		command = "open"
+		arguments = []string{path}
+	case "windows":
+		command = "cmd"
+		arguments = []string{"/c", "start", "", path}
+	default:
+		command = "xdg-open"
+		arguments = []string{path}
+	}
+	return exec.Command(command, arguments...).Start()
 }
 
 func fail(message string) { fmt.Fprintln(os.Stderr, "bound: "+message); os.Exit(1) }

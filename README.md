@@ -173,22 +173,36 @@ its file-length limit or a function exceeds its line, cyclomatic-complexity,
 nesting-depth, or parameter limit. The declaration rule keeps top-level types,
 functions, constants, and variables from being mixed in one source file.
 
+## Compiler
+
+`bound compile` is the compiler entry point. It parses the architecture, resolves
+relative imports, validates the architecture model, derives the implementation
+source root, and runs the backend checks. For Go, those checks include source
+ownership, conventional module paths, quality rules, and actual package imports
+against declared `uses` and context relationships.
+
+```sh
+bound compile examples/github-activity/github-activity.bo > architecture.json
+bound review examples/github-activity/github-activity.bo
+```
+
+`compile` prints the resolved compiler IR as JSON. `review` writes and opens a
+standalone review page containing the context, component, interaction, contract/module,
+and source-ownership diagrams. The page uses Mermaid in the browser and
+includes zoom and fullscreen controls; opening it requires access to the
+Mermaid CDN.
+
+The compiler reports failures by phase (`parse`, `validate`, or `analyze`) so a
+future backend can add language-specific checks without coupling them to the
+Bound parser. The architecture model is the compiler's intermediate
+representation and is shared by validation, dependency analysis, and rendering
+backends.
+
 ## Try it
 
 ```sh
 go test ./...
 ```
-
-Generate a Markdown architecture report with Mermaid diagrams:
-
-```sh
-bound mermaid examples/github-activity/github-activity.bo
-bound mermaid -o docs/github-activity.md examples/github-activity/github-activity.bo
-```
-
-Without `-o`, the report is written beside the `.bo` file with the same base
-name and a `.md` extension. The report includes context, component, interaction,
-contract/module, and source-ownership views.
 
 The architecture model is intentionally independent of implementation
 languages. Backends translate module and entrypoint names into their native

@@ -43,7 +43,10 @@ func TestMermaidMarkdownRendersArchitectureDiagrams(t *testing.T) {
 			},
 		},
 		Relations: []model.Relation{{From: "Reporting", To: "Source", Via: "Reports"}},
-		Files:     []model.FileMapping{{Path: "reporting/daily.go", Node: "Reporting.Daily"}},
+		Files: []model.FileMapping{
+			{Path: "main.go", Node: "", RootEntrypoint: true, EntryPoint: true, EntryPointName: "main"},
+			{Path: "reporting/daily.go", Node: "Reporting.Daily"},
+		},
 	}
 
 	output := MermaidMarkdown(architecture)
@@ -64,6 +67,7 @@ func TestMermaidMarkdownRendersArchitectureDiagrams(t *testing.T) {
 		"module_Reporting_Daily ..|> interface_Reporting_Reports : implements",
 		"module_Reporting_Daily ..> module_Reporting_Helper : uses",
 		"subgraph source_module_Reporting_Daily[\"Reporting.Daily\"]",
+		"subgraph source_module_root[\"Example (root)\"]",
 		"file_reporting_daily_go[\"daily.go\"]",
 	} {
 		if !strings.Contains(output, expected) {
@@ -99,6 +103,31 @@ func TestInteractionDiagramUsesModuleDependenciesWhenContextsHaveNoRelations(t *
 	} {
 		if !strings.Contains(output, expected) {
 			t.Errorf("interaction output does not contain %q:\n%s", expected, output)
+		}
+	}
+}
+
+func TestMermaidHTMLRendersInteractiveReviewPage(t *testing.T) {
+	architecture := &model.Architecture{
+		Name:           "Example",
+		Implementation: model.Implementation{Language: "go", Locator: "."},
+		Contexts: map[string]*model.Context{
+			"Source": {Name: "Source", Interfaces: map[string]*model.Interface{}, Modules: map[string]*model.Module{}},
+		},
+		Modules: map[string]*model.Module{},
+	}
+
+	output := MermaidHTML(architecture)
+	for _, expected := range []string{
+		"<!doctype html>",
+		"Architecture: Example",
+		"https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs",
+		"Context relationships",
+		"data-action=\"fullscreen\"",
+		"classDiagram",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("HTML output does not contain %q:\n%s", expected, output)
 		}
 	}
 }
