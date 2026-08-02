@@ -3,6 +3,9 @@ The GitHub activity report is an executable architecture. Its names describe the
 business and technical responsibilities directly: a replaceable CLI boundary,
 an external-system infrastructure adapter, and a lib layer containing the
 activity and reporting bounded contexts.
+
+Source revision: ce010aa6fd5815f67d9271b9fa40e0092bc0d86d
+Inspected: 2026-08-01
 """
 architecture GitHubActivity do
   implementation go "."

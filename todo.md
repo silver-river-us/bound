@@ -1,0 +1,25 @@
+# Bound TODO
+
+- [x] Publish a stable compiler/library API beyond the current thin wrapper, including documented options, typed diagnostics, and compatibility guarantees for consumers that do not use the CLI.
+- [x] Define and document the `.bo` grammar and semantic rules as the canonical language reference, including imports, contexts, contracts, modules, relationships, source ownership, and implementation targets.
+- [x] Add compiler diagnostics with source line/column locations, related source spans, and actionable suggestions for common modeling errors.
+- [x] Define compatibility rules for the versioned compiler IR, including which changes are backwards-compatible and how schema migrations are handled.
+- [x] Add a second implementation backend for the next real architecture, prioritizing the language based on an actual project need rather than adding a backend speculatively.
+- [x] Improve Go analysis for multi-module repositories, nested modules, workspaces, and implementation roots located outside the Bound repository.
+- [x] Decide whether Ruby needs dependency analysis beyond explicit ownership and Rails conventions; document the decision not to infer dynamic Ruby dependencies unless a real architecture requires it.
+- [x] Support reusable domain types in interface contracts so existing-system models can reference shared types without duplicating definitions.
+- [x] Add richer relationship descriptions and dependency metadata to both Mermaid reviews and compiler IR JSON.
+- [x] Define representations and validation rules for polymorphism, asynchronous events, queues, databases, and external systems.
+- [x] Detect architecture quality problems such as unreachable contexts, unused contracts, duplicate relationships, and suspicious dependency cycles, with opt-in severity where appropriate.
+- [x] Improve HTML reviews with diagram navigation, a compact architecture summary, and filtering for large domain models or individual contexts.
+- [x] Make Mermaid assets optionally local or embedded so generated reviews can work without CDN access.
+- [x] Add export formats for Markdown, SVG, and print-friendly HTML.
+- [x] Add browser-level smoke-equivalent tests that verify generated HTML contracts, diagram hooks, and Mermaid failures are reported clearly without requiring a browser.
+- [x] Re-run every source-backed example against a pinned repository revision and record the revision and inspection date in its architecture metadata.
+- [x] Add a greenfield example that demonstrates designing an architecture before implementation exists.
+- [x] Keep the architecture-refresh agent workflow reviewable: inspect source-backed `.bo`/`.bom` files, run validation, and open a PR instead of modifying the default branch directly.
+- [x] Keep CI running `go test ./...`, `go vet ./...`, locally backed example compilation, and compiler IR checks.
+- [x] Add installation and build documentation for the `bound` executable, including supported platforms and the `src` layout.
+- [x] Add release versioning, changelog, and compiler IR migration conventions.
+- [x] Package the `bound-architecture-specs` skill as part of the project release workflow.
+- [x] Establish a human review checklist for automated architecture PRs and require review before merging changes supported by the current source tree.

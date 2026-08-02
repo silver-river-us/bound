@@ -1,0 +1,132 @@
+package parser_test
+
+import (
+	. "bound/src/parser"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestContextImportsInterfaceFragment(t *testing.T) {
+	directory := t.TempDir()
+	architecturePath := filepath.Join(directory, "example.bo")
+	fragmentPath := filepath.Join(directory, "reports.bo")
+
+	writeTestFile(t, fragmentPath, `
+interface Reports do
+  value Snapshot do
+    state :created_at :timestamp
+  end
+  behavior render(snapshot Snapshot) returns string
+end
+interface Unrequested do
+end
+`)
+	writeTestFile(t, architecturePath, `
+architecture Example do
+  implementation go "./"
+  context Reporting do
+    import Reports from "reports.bo"
+    exposes Reports
+  end
+end
+`)
+
+	architecture, err := ParseFile(architecturePath)
+	if err != nil {
+		t.Fatalf("parse architecture: %v", err)
+	}
+	contract := architecture.Contexts["Reporting"].Interfaces["Reports"]
+	if contract == nil || contract.Types["Snapshot"] == nil {
+		t.Fatal("imported interface contract was not merged into its context")
+	}
+	if _, exists := architecture.Contexts["Reporting"].Interfaces["Unrequested"]; exists {
+		t.Fatal("unrequested interface was imported")
+	}
+	if err := architecture.Validate(); err != nil {
+		t.Fatalf("validate architecture: %v", err)
+	}
+}
+
+func TestContextFragmentImportsAnotherFragment(t *testing.T) {
+	directory := t.TempDir()
+	architecturePath := filepath.Join(directory, "example.bo")
+	writeTestFile(t, filepath.Join(directory, "types.bo"), `
+interface Types do
+  value Identifier do
+    state :value :string
+  end
+end
+`)
+	writeTestFile(t, filepath.Join(directory, "reports.bo"), `
+import Types from "types.bo"
+interface Reports do
+  behavior find(id Types.Identifier) returns string
+end
+`)
+	writeTestFile(t, architecturePath, `
+architecture Example do
+  implementation go "./"
+  context Reporting do
+    import Reports from "reports.bo"
+    exposes Reports
+  end
+end
+`)
+
+	architecture, err := ParseFile(architecturePath)
+	if err != nil {
+		t.Fatalf("parse architecture: %v", err)
+	}
+	if architecture.Contexts["Reporting"].Interfaces["Types"] == nil {
+		t.Fatal("recursively imported interface was not merged")
+	}
+}
+
+func TestContextFragmentRejectsModules(t *testing.T) {
+	directory := t.TempDir()
+	architecturePath := filepath.Join(directory, "example.bo")
+	writeTestFile(t, filepath.Join(directory, "invalid.bo"), `
+module Internal do
+end
+`)
+	writeTestFile(t, architecturePath, `
+architecture Example do
+  implementation go "./"
+  context Reporting do
+    import Invalid from "invalid.bo"
+  end
+end
+`)
+
+	_, err := ParseFile(architecturePath)
+	if err == nil || !strings.Contains(err.Error(), "may only contain imports and interfaces") {
+		t.Fatalf("error = %v, want fragment module rejection", err)
+	}
+}
+
+func TestContextImportRejectsUnknownInterface(t *testing.T) {
+	directory := t.TempDir()
+	writeTestFile(t, filepath.Join(directory, "reports.bo"), "interface Reports do\nend\n")
+	writeTestFile(t, filepath.Join(directory, "example.bo"), `
+architecture Example do
+  implementation go "./"
+  context Reporting do
+    import Missing from "reports.bo"
+  end
+end
+`)
+
+	_, err := ParseFile(filepath.Join(directory, "example.bo"))
+	if err == nil || !strings.Contains(err.Error(), "does not define interface Missing") {
+		t.Fatalf("error = %v, want missing imported interface", err)
+	}
+}
+
+func writeTestFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}

@@ -1,2 +1,5 @@
 .qfile_memory/
+/bin/
+/target/
+/integrations/zed-extension/target/
 /examples/github-activity/reports/*.md

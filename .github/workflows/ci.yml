@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test
+        run: go test ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Compile the locally backed example
+        run: ./bound compile examples/github-activity/github-activity.bo >/tmp/github-activity.json
+      - name: Verify generated IR
+        run: |
+          test -s /tmp/github-activity.json
+          grep -q '"schema_version": 1' /tmp/github-activity.json

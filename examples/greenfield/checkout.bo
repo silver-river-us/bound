@@ -1,0 +1,44 @@
+"""
+A design-first checkout service. The implementation is intentionally empty:
+this file is validated as a language-neutral architecture before code exists.
+"""
+architecture Checkout do
+  implementation python "."
+
+  context API do
+    interface Order do
+      entity Order do
+        state :id :string
+        state :total :decimal
+      end
+      behavior submit(order Order) returns Order
+    end
+    exposes Order
+    module API do
+    end
+  end
+
+  context Payments do
+    interface Payment do
+      entity Payment do
+        state :id :string
+        state :status :string
+      end
+      behavior authorize(order any) returns Payment
+    end
+    exposes Payment
+    module Payments do
+    end
+  end
+
+  context Checkout do
+    module Checkout do
+      uses API.Order
+      uses Payments.Payment
+    end
+  end
+
+  API -> Payments via Payment
+  Checkout -> API via Order
+  Checkout -> Payments via Payment
+end

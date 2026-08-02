@@ -1,0 +1,23 @@
+id = "bound"
+name = "Bound"
+version = "0.1.0"
+schema_version = 1
+authors = ["Matias Gutierrez"]
+description = "Bound architecture language support and language server."
+repository = "https://github.com/matiasgutierrez/bound"
+languages = ["languages/bound"]
+icon_themes = ["icon_themes/bound.json"]
+
+[lib]
+kind = "Rust"
+version = "0.7.0"
+
+[grammars.bound]
+repository = "file:///Users/matiasgutierrez/Develop/bound/integrations/tree-sitter-bound"
+rev = "4cdd0d10351f6e72733d94ba9f4b8fa915fd677b"
+
+[language_servers.bound-lsp]
+languages = ["Bound"]
+
+[language_servers.bound-lsp.language_ids]
+Bound = "bound"

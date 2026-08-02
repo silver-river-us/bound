@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export ASDF_GOLANG_MOD_VERSION_ENABLED=true
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+lsp_binary="$repo_root/target/go/bound-lsp"
+go_command="go"
+if command -v asdf >/dev/null 2>&1; then
+  go_command="$(asdf which go)"
+fi
+
+mkdir -p "$repo_root/target/go"
+(cd "$repo_root" && "$go_command" build -trimpath -o "$lsp_binary" ./src/lsp-server)
+exec "$lsp_binary" "$@"

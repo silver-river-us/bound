@@ -1,0 +1,18 @@
+{
+  "grammars": [
+    {
+      "name": "bound",
+      "camelcase": "Bound",
+      "scope": "source.bound",
+      "path": ".",
+      "file-types": ["bo"],
+      "highlights": "queries/highlights.scm"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Tree-sitter grammar for Bound architecture files",
+    "authors": [{"name": "Bound contributors"}]
+  }
+}

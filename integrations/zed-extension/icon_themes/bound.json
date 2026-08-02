@@ -1,0 +1,33 @@
+{
+  "$schema": "https://zed.dev/schema/icon_themes/v0.3.0.json",
+  "name": "Bound Icons",
+  "author": "Matias Gutierrez",
+  "themes": [
+    {
+      "name": "Bound Icons",
+      "appearance": "dark",
+      "file_suffixes": {
+        "bo": "bound",
+        "bom": "bound"
+      },
+      "file_icons": {
+        "bound": {
+          "path": "./icons/bound-file.svg"
+        }
+      }
+    },
+    {
+      "name": "Bound Icons",
+      "appearance": "light",
+      "file_suffixes": {
+        "bo": "bound",
+        "bom": "bound"
+      },
+      "file_icons": {
+        "bound": {
+          "path": "./icons/bound-file.svg"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,307 @@
+"""
+Current-state architecture reverse-engineered from the qfile repository.
+
+Qfile is a local Go CLI for searching project files, memory, and conversation
+history; asking Codex questions; generating reviewable knowledge; and exporting
+normalized conversation data. The source module lives in the sibling qfile
+repository under src.
+
+Source revision: bacbc5ec9ffb597787bb497fe8305f98ad07b54f
+Inspected: 2026-08-01
+"""
+architecture QFile do
+  implementation go "../../../qfile/src"
+  import QFileSources from "qfile.bom"
+
+  entity SearchEntry do
+    state :path :string
+    state :title :string
+    state :tags :string[]
+    state :content :string
+    state :source :string
+  end
+
+  entity SearchMatch do
+    state :entry :SearchEntry
+    state :score :float
+    state :snippet :string
+  end
+
+  entity Message do
+    state :role :string
+    state :text :string
+  end
+
+  entity Conversation do
+    state :path :string
+    state :title :string
+    state :identity :string
+    state :latest_timestamp :timestamp
+    state :questions :string[]
+    state :messages :Message[]
+    state :message_count :int
+    state :qfile_actions :int
+    state :memory_actions :int
+    state :qfile_results :int
+    state :memory_results :int
+    state :malformed_records :int
+  end
+
+  entity KnowledgeDocument do
+    state :file_path :string
+    state :source_path :string
+    state :provider :string
+    state :session_id :string
+    state :title :string
+    state :latest_timestamp :timestamp
+    state :source_hash :string
+    state :status :string
+    state :updated_at :timestamp
+    state :summary :string
+    state :topics :string[]
+    state :decisions :string[]
+    state :practices :string[]
+    state :open_questions :string[]
+    state :notes :string[]
+  end
+
+  entity Manifest do
+    state :targets :string[]
+  end
+
+  entity NormalizedConversation do
+    state :schema_version :int
+    state :id :string
+    state :source_path :string
+    state :provider :string
+    state :session_id :string
+    state :title :string
+    state :latest_timestamp :timestamp
+    state :source_hash :string
+    state :message_count :int
+    state :qfile_actions :int
+    state :memory_actions :int
+    state :qfile_results :int
+    state :memory_results :int
+    state :malformed_records :int
+  end
+
+  entity NormalizedMessage do
+    state :schema_version :int
+    state :id :string
+    state :conversation_id :string
+    state :sequence :int
+    state :role :string
+    state :text :string
+  end
+
+  entity NormalizedKnowledge do
+    state :schema_version :int
+    state :id :string
+    state :conversation_id :string
+    state :source_path :string
+    state :source_hash :string
+    state :provider :string
+    state :status :string
+    state :summary :string
+    state :topics :string[]
+    state :decisions :string[]
+    state :practices :string[]
+    state :open_questions :string[]
+    state :notes :string[]
+  end
+
+  entity NormalizedDataset do
+    state :conversation :NormalizedConversation
+    state :messages :NormalizedMessage[]
+  end
+
+  entity MessageResult do
+    state :conversation_id :string
+    state :message_id :string
+    state :sequence :int
+    state :role :string
+    state :text :string
+  end
+
+  context Boundary do
+    interface CommandLine do
+      behavior run(args string[]) returns string
+    end
+    interface InteractiveConsole do
+      behavior run(root string, initial_query string) returns string
+    end
+    exposes CommandLine
+    exposes InteractiveConsole
+
+    module Boundary do
+      module CLI do
+        implements CommandLine
+        uses TUI
+        uses Domain.SearchPort
+        uses Domain.HistoryPort
+        uses Domain.KnowledgePort
+        uses Domain.MemoryPort
+        uses Domain.GatherPort
+        uses Infrastructure.FileWorkspace
+        uses Infrastructure.KnowledgeStore
+        uses Infrastructure.ExportPort
+        uses Infrastructure.CodexProcess
+      end
+      module TUI do
+        implements InteractiveConsole
+        uses Domain.SearchPort
+        uses Domain.HistoryPort
+        uses Domain.KnowledgePort
+        uses Domain.GatherPort
+        uses Infrastructure.FileWorkspace
+        uses Infrastructure.KnowledgeStore
+        uses Infrastructure.EditorPort
+        uses Infrastructure.CodexProcess
+      end
+    end
+  end
+
+  context Command do
+    module Cmd do
+      module Qfile do
+        entrypoint qfile
+        uses Boundary.CommandLine
+      end
+    end
+  end
+
+  context Domain do
+    interface SearchPort do
+      behavior find(entries SearchEntry[], query string, source string, limit int) returns SearchMatch[]
+    end
+    interface HistoryPort do
+      behavior extract(entries SearchEntry[]) returns Conversation[]
+      behavior extract_all(entries SearchEntry[]) returns Conversation[]
+      behavior is_knowledge_candidate(conversation Conversation) returns bool
+    end
+    interface KnowledgePort do
+      behavior prompt(conversation Conversation) returns string
+      behavior parse_codex_json(raw string) returns KnowledgeDocument
+      behavior title(conversation Conversation) returns string
+      behavior fingerprint(conversation Conversation) returns string
+    end
+    interface MemoryPort do
+      behavior session() returns string
+      behavior write(root string, content string, now timestamp) returns string
+    end
+    interface GatherPort do
+      behavior prompt(question string, matches SearchMatch[]) returns string
+      behavior conversation_prompt(question string, conversation Conversation) returns string
+    end
+    interface Normalized do
+      behavior normalize(source Conversation) returns NormalizedDataset
+    end
+    exposes SearchPort
+    exposes HistoryPort
+    exposes KnowledgePort
+    exposes MemoryPort
+    exposes GatherPort
+    exposes Normalized
+
+    module Domain do
+      module Search do
+        implements SearchPort
+      end
+      module NormalizedTypes do
+        implements Normalized
+        uses HistoryPort
+      end
+      module History do
+        implements HistoryPort
+        uses SearchPort
+      end
+      module Knowledge do
+        implements KnowledgePort
+        uses HistoryPort
+      end
+      module Memory do
+        implements MemoryPort
+      end
+      module Gather do
+        implements GatherPort
+        uses HistoryPort
+        uses SearchPort
+      end
+    end
+  end
+
+  context Infrastructure do
+    interface FileWorkspace do
+      behavior load_manifest(root string) returns Manifest
+      behavior add_target(root string, target string)
+      behavior load_entries(root string, manifest Manifest) returns SearchEntry[]
+      behavior load_entries_for_source(root string, manifest Manifest, source string) returns SearchEntry[]
+      behavior rebuild_history_index(root string, manifest Manifest, force bool) returns string
+      behavior search_history_entries(root string, manifest Manifest, query string) returns SearchEntry[]
+    end
+    interface KnowledgeStore do
+      behavior load(root string) returns KnowledgeDocument[]
+      behavior write(root string, conversation Conversation, summary KnowledgeDocument) returns string
+      behavior accept(root string, source_path string) returns KnowledgeDocument
+      behavior reject(root string, source_path string) returns KnowledgeDocument
+      behavior update_title(document KnowledgeDocument, title string)
+    end
+    interface ExportPort do
+      behavior export(root string, conversations Conversation[], documents KnowledgeDocument[], rebuild bool) returns string
+      behavior query(root string, contains string, limit int) returns MessageResult[]
+    end
+    interface EditorPort do
+      behavior command(path string) returns string
+    end
+    interface CodexProcess do
+      behavior run(prompt string) returns string
+      behavior stream(prompt string) returns string
+    end
+    exposes FileWorkspace
+    exposes KnowledgeStore
+    exposes ExportPort
+    exposes EditorPort
+    exposes CodexProcess
+
+    module Infrastructure do
+      module Filesystem do
+        implements FileWorkspace
+        uses Domain.SearchPort
+      end
+      module Knowledge do
+        implements KnowledgeStore
+        uses Domain.HistoryPort
+        uses Domain.KnowledgePort
+      end
+      module Export do
+        implements ExportPort
+        uses Domain.HistoryPort
+        uses Domain.KnowledgePort
+        uses Domain.Normalized
+      end
+      module Editor do
+        implements EditorPort
+      end
+      module Process do
+        implements CodexProcess
+      end
+    end
+  end
+
+  Boundary -> Domain via SearchPort
+  Boundary -> Domain via HistoryPort
+  Boundary -> Domain via KnowledgePort
+  Boundary -> Domain via MemoryPort
+  Boundary -> Domain via GatherPort
+  Boundary -> Infrastructure via FileWorkspace
+  Boundary -> Infrastructure via KnowledgeStore
+  Boundary -> Infrastructure via ExportPort
+  Boundary -> Infrastructure via EditorPort
+  Boundary -> Infrastructure via CodexProcess
+  Infrastructure -> Domain via SearchPort
+  Infrastructure -> Domain via HistoryPort
+  Infrastructure -> Domain via KnowledgePort
+  Infrastructure -> Domain via Normalized
+  Command -> Boundary via CommandLine
+end

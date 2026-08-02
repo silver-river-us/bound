@@ -1,0 +1,338 @@
+"""
+Current-state architecture recovered from the Stitch Bank monorepo.
+The repository combines a Rails API, two React applications, and Azure
+infrastructure for a multi-tenant loan-origination platform.
+
+The implementation locator points at the sibling repository in this workspace.
+The Ruby backend validates the explicit source ownership map; Rails constant
+autoloading is represented by the declared Bound contracts and relations.
+
+Source revision: 5051fcb452ba81547523ca51f2350427655d1a3b
+Inspected: 2026-08-01
+"""
+architecture StitchBank do
+  implementation ruby "../../../stitch_bank"
+  import StitchBankSources from "stitch-bank.bom"
+
+  entity Organization do
+    state :subdomain :string
+    state :name :string
+    state :config :OrganizationConfig
+    state :provider_application_mappings :ProviderApplicationMapping[]
+  end
+
+  entity OrganizationConfig do
+    state :organization :Organization
+    state :quantum_api_key :string
+    state :branding :string
+  end
+
+  entity User do
+    state :external_id :string
+    state :email :string
+    state :application_owners :ProductApplicationOwner[]
+  end
+
+  entity Product do
+    state :name :string
+    state :short_name :string
+    state :steps :Step[]
+    state :config_versions :ConfigVersion[]
+    state :resolved_configs :ResolvedConfig[]
+    state :applications :ProductApplication[]
+  end
+
+  entity Step do
+    state :product :Product
+    state :key :string
+    state :fields :Field[]
+  end
+
+  entity Field do
+    state :step :Step
+    state :key :string
+    state :field_type :string
+  end
+
+  entity ConfigLayer do
+    state :name :string
+    state :priority :int
+    state :versions :ConfigVersion[]
+  end
+
+  entity ConfigVersion do
+    state :layer :ConfigLayer
+    state :product :Product
+    state :status :string
+    state :immutable :bool
+  end
+
+  entity ResolvedConfig do
+    state :product :Product
+    state :source_versions :ConfigVersion[]
+  end
+
+  entity ProductApplication do
+    state :product :Product
+    state :resolved_config :ResolvedConfig
+    state :owners :ProductApplicationOwner[]
+    state :entries :FieldEntry[]
+    state :offers :ProductApplicationOffer[]
+    state :tasks :ProductApplicationTask[]
+    state :documents :Document[]
+    state :plaid_sessions :PlaidLinkSession[]
+    state :webhook_events :WebhookEvent[]
+    state :status :string
+    state :stage :string
+    behavior submit() returns ProductApplication
+    behavior withdraw() returns ProductApplication
+  end
+
+  entity ProductApplicationOwner do
+    state :application :ProductApplication
+    state :user :User
+    state :role :string
+    state :verified :bool
+  end
+
+  entity FieldEntry do
+    state :product :Product
+    state :application :ProductApplication
+    state :field_key :string
+    state :encrypted :bool
+  end
+
+  entity ProductApplicationOffer do
+    state :application :ProductApplication
+    state :status :string
+    behavior accept() returns ProductApplicationOffer
+    behavior decline() returns ProductApplicationOffer
+  end
+
+  entity ProductApplicationTask do
+    state :application :ProductApplication
+    state :documents :Document[]
+    state :status :string
+  end
+
+  entity Document do
+    state :application :ProductApplication
+    state :task :ProductApplicationTask
+    state :upload_status :string
+  end
+
+  entity PlaidLinkSession do
+    state :application :ProductApplication
+    state :status :string
+  end
+
+  entity ProviderApplicationMapping do
+    state :organization :Organization
+    state :provider :string
+    state :external_id :string
+  end
+
+  entity WebhookEvent do
+    state :application :ProductApplication
+    state :provider :string
+    state :event_id :string
+    state :status :string
+  end
+
+  entity AuditEvent do
+    state :subject :any
+    state :user :User
+    state :kind :string
+    state :request_uuid :string
+  end
+
+  entity Complaint do
+    state :organization :Organization
+    state :product_type :string
+    state :submission_status :string
+  end
+
+  context ApplicantExperience do
+    interface ApplicationJourney do
+      behavior authenticate(phone string) returns string
+      behavior save_application(application_id string) returns string
+      behavior submit_application(application_id string) returns string
+    end
+    exposes ApplicationJourney
+
+    module ApplicantExperience do
+      module Web do
+        implements ApplicationJourney
+        uses Origination.ApplicationLifecycle
+        uses TenantPlatform.Authentication
+      end
+    end
+  end
+
+  context OperationsExperience do
+    interface OperationsConsole do
+      behavior manage_clients() returns string
+      behavior review_applications() returns string
+      behavior configure_products() returns string
+    end
+    exposes OperationsConsole
+
+    module OperationsExperience do
+      module Web do
+        implements OperationsConsole
+        uses Origination.OriginationOperations
+        uses TenantPlatform.Authentication
+      end
+    end
+  end
+
+  context Origination do
+    interface ApplicationLifecycle do
+      behavior create_application(product_id string) returns string
+      behavior save_entries(application_id string) returns string
+      behavior submit_application(application_id string) returns string
+      behavior synchronize_application(application_id string) returns string
+    end
+    interface OriginationOperations do
+      behavior list_applications() returns string
+      behavior configure_products() returns string
+    end
+    interface Configuration do
+      behavior resolve_product_config(product_id string) returns string
+    end
+    exposes ApplicationLifecycle
+    exposes OriginationOperations
+    exposes Configuration
+
+    module Origination do
+      module Application do
+        implements ApplicationLifecycle
+        uses Domain
+        uses Configuration
+        uses ProviderIntegrations.LendingProvider
+        uses ProviderIntegrations.BankDataProvider
+        uses ProviderIntegrations.PrefillProvider
+        uses DocumentsAndCompliance.DocumentWorkflow
+        uses TenantPlatform.TenantIsolation
+      end
+      module Operations do
+        implements OriginationOperations
+        uses Domain
+        uses Configuration
+      end
+      module Configuration do
+        implements Configuration
+        uses Domain
+      end
+      module Domain do
+      end
+    end
+  end
+
+  context ProviderIntegrations do
+    interface LendingProvider do
+      behavior submit_application(application_id string) returns string
+      behavior synchronize_application(application_id string) returns string
+    end
+    interface BankDataProvider do
+      behavior link_bank_account(application_id string) returns string
+    end
+    interface PrefillProvider do
+      behavior prefill_application(application_id string) returns string
+    end
+    interface ComplaintDelivery do
+      behavior deliver_complaint(complaint_id string) returns string
+    end
+    exposes LendingProvider
+    exposes BankDataProvider
+    exposes PrefillProvider
+    exposes ComplaintDelivery
+
+    module ProviderIntegrations do
+      module Quantum do
+        implements LendingProvider
+      end
+      module Plaid do
+        implements BankDataProvider
+      end
+      module Baselayer do
+        implements PrefillProvider
+      end
+      module Zanko do
+        implements ComplaintDelivery
+      end
+    end
+  end
+
+  context DocumentsAndCompliance do
+    interface DocumentWorkflow do
+      behavior upload_documents(application_id string) returns string
+      behavior sign_contract(application_id string) returns string
+    end
+    interface ComplianceAudit do
+      behavior record_material_change(application_id string) returns string
+    end
+    interface Notifications do
+      behavior send_application_notification(application_id string) returns string
+    end
+    exposes DocumentWorkflow
+    exposes ComplianceAudit
+    exposes Notifications
+
+    module DocumentsAndCompliance do
+      module Documents do
+        implements DocumentWorkflow
+        uses TenantPlatform.TenantIsolation
+      end
+      module Compliance do
+        implements ComplianceAudit
+        uses TenantPlatform.TenantIsolation
+      end
+      module Notifications do
+        implements Notifications
+        uses TenantPlatform.TenantIsolation
+      end
+    end
+  end
+
+  context TenantPlatform do
+    interface Authentication do
+      behavior request_otp(phone string) returns string
+      behavior issue_token(user_id string) returns string
+    end
+    interface TenantIsolation do
+      behavior resolve_organization(subdomain string) returns string
+      behavior switch_tenant(tenant string) returns string
+    end
+    exposes Authentication
+    exposes TenantIsolation
+
+    module TenantPlatform do
+      module API do
+      end
+      module Auth do
+        implements Authentication
+      end
+      module Tenancy do
+        implements TenantIsolation
+      end
+      module Background do
+        uses TenantIsolation
+      end
+      module Rails do
+      end
+    end
+  end
+
+  ApplicantExperience -> Origination via ApplicationLifecycle
+  ApplicantExperience -> TenantPlatform via Authentication
+  OperationsExperience -> Origination via OriginationOperations
+  OperationsExperience -> TenantPlatform via Authentication
+  Origination -> ProviderIntegrations via LendingProvider
+  Origination -> ProviderIntegrations via BankDataProvider
+  Origination -> ProviderIntegrations via PrefillProvider
+  Origination -> DocumentsAndCompliance via DocumentWorkflow
+  Origination -> TenantPlatform via TenantIsolation
+  DocumentsAndCompliance -> TenantPlatform via TenantIsolation
+  ProviderIntegrations -> TenantPlatform via TenantIsolation
+end

@@ -1,0 +1,6 @@
+name = "Bound"
+grammar = "bound"
+path_suffixes = ["bo"]
+line_comments = ["# "]
+tab_size = 2
+hard_tabs = false

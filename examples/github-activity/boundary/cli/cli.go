@@ -10,7 +10,7 @@ import (
 
 	githubapi "bound/examples/github-activity/infrastructure/github"
 	"bound/examples/github-activity/lib/reporting"
-	"bound/internal/framework"
+	"bound/src/framework"
 )
 
 func Run() {
