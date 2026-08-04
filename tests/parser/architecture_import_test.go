@@ -1,7 +1,7 @@
 package parser_test
 
 import (
-	. "bound/src/parser"
+	. "bound/src/lib/parser"
 	"path/filepath"
 	"strings"
 	"testing"

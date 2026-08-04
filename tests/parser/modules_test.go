@@ -1,11 +1,11 @@
 package parser_test
 
 import (
-	. "bound/src/parser"
+	. "bound/src/lib/parser"
 	"strings"
 	"testing"
 
-	"bound/src/model"
+	"bound/src/lib/model"
 )
 
 func TestNestedModulesDeclareContractsDependenciesAndEntrypoints(t *testing.T) {

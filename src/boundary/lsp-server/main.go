@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"bound/src/lsp"
+	"bound/src/boundary/lsp"
 )
 
 func main() {

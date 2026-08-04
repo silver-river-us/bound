@@ -1,7 +1,7 @@
 package render
 
 import (
-	"bound/src/model"
+	"bound/src/lib/model"
 	"fmt"
 	"sort"
 	"strings"

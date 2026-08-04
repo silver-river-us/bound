@@ -1,13 +1,13 @@
 package analyze_test
 
 import (
-	. "bound/src/analyze"
+	. "bound/src/infrastructure/analyze"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"bound/src/model"
+	"bound/src/lib/model"
 )
 
 func TestRubyValidatesMappedSourceOwnership(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"bound/src/model"
+	"bound/src/lib/model"
 )
 
 // HTMLOptions controls how MermaidHTMLWithOptions loads Mermaid and how the

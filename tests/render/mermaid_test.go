@@ -1,12 +1,12 @@
 package render_test
 
 import (
-	. "bound/src/render"
+	. "bound/src/boundary/render"
 	"encoding/xml"
 	"strings"
 	"testing"
 
-	"bound/src/model"
+	"bound/src/lib/model"
 )
 
 func TestMermaidMarkdownRendersArchitectureDiagrams(t *testing.T) {

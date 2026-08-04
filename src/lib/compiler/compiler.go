@@ -10,12 +10,61 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"bound/src/analyze"
-	"bound/src/model"
-	"bound/src/parser"
+	"bound/src/infrastructure/analyze"
+	"bound/src/lib/model"
+	"bound/src/lib/parser"
 )
 
+// Backend validates one implementation language.
+type Backend interface {
+	Language() string
+	Analyze(root string, architecture *model.Architecture) error
+}
+
+// Registry resolves implementation languages to analyzers.
+type Registry struct {
+	backends map[string]Backend
+}
+
+// NewRegistry creates a backend registry. Later backends replace earlier
+// backends with the same language, which makes explicit test or application
+// overrides straightforward.
+func NewRegistry(backends ...Backend) Registry {
+	registry := Registry{backends: make(map[string]Backend, len(backends))}
+	for _, backend := range backends {
+		if backend != nil {
+			registry.backends[backend.Language()] = backend
+		}
+	}
+	return registry
+}
+
+// Register adds or replaces a backend in the registry.
+func (r *Registry) Register(backend Backend) {
+	if backend == nil {
+		return
+	}
+	if r.backends == nil {
+		r.backends = make(map[string]Backend)
+	}
+	r.backends[backend.Language()] = backend
+}
+
+// Lookup returns the analyzer registered for language.
+func (r Registry) Lookup(language string) (Backend, bool) {
+	backend, ok := r.backends[language]
+	return backend, ok
+}
+
+// DefaultRegistry returns the built-in Go, Ruby, and Python backends.
+func DefaultRegistry() Registry {
+	return NewRegistry(analyze.GoBackend{}, analyze.RubyBackend{}, analyze.PythonBackend{})
+}
+
 type Options struct {
+	// Backends overrides the built-in implementation backend registry.
+	// A nil registry uses the built-in Go, Ruby, and Python backends.
+	Backends *Registry
 	// SourceRoot overrides the implementation root declared by the architecture.
 	// When empty, it is resolved relative to the architecture file.
 	SourceRoot string
@@ -41,21 +90,22 @@ func (p *Program) JSON() ([]byte, error) {
 }
 
 type RelatedDiagnostic struct {
-	Path    string
-	Line    int
-	Column  int
-	Message string
+	Path    string `json:"path"`
+	Line    int    `json:"line,omitempty"`
+	Column  int    `json:"column,omitempty"`
+	Message string `json:"message"`
 }
 
 type Diagnostic struct {
-	Phase      string
-	Path       string
-	Line       int
-	Column     int
-	Severity   string
-	Message    string
-	Suggestion string
-	Related    []RelatedDiagnostic
+	Code       string              `json:"code"`
+	Phase      string              `json:"phase"`
+	Path       string              `json:"path"`
+	Line       int                 `json:"line,omitempty"`
+	Column     int                 `json:"column,omitempty"`
+	Severity   string              `json:"severity"`
+	Message    string              `json:"message"`
+	Suggestion string              `json:"suggestion,omitempty"`
+	Related    []RelatedDiagnostic `json:"related,omitempty"`
 }
 
 func (d Diagnostic) Error() string {
@@ -67,7 +117,7 @@ func (d Diagnostic) Error() string {
 		}
 		location += ": "
 	}
-	message := fmt.Sprintf("%s%s: %s", d.Phase, location, d.Message)
+	message := fmt.Sprintf("%s %s%s: %s", d.Code, d.Phase, location, d.Message)
 	if d.Suggestion != "" {
 		message += " (suggestion: " + d.Suggestion + ")"
 	}
@@ -126,34 +176,31 @@ func Compile(path string, options Options) (*Program, error) {
 	if options.SkipImplementation {
 		return program, nil
 	}
-	if err := checkImplementation(program); err != nil {
+	registry := options.Backends
+	if registry == nil {
+		defaultBackends := DefaultRegistry()
+		registry = &defaultBackends
+	}
+	if err := checkImplementation(program, *registry); err != nil {
 		return nil, err
 	}
 	return program, nil
 }
 
-func checkImplementation(program *Program) error {
-	switch program.Architecture.Implementation.Language {
-	case "go":
-		if err := analyze.Go(program.SourceRoot, program.Architecture); err != nil {
-			return diagnostic("analyze", program.SourceRoot, err)
-		}
-	case "ruby":
-		if err := analyze.Ruby(program.SourceRoot, program.Architecture); err != nil {
-			return diagnostic("analyze", program.SourceRoot, err)
-		}
-	case "python":
-		if err := analyze.Python(program.SourceRoot, program.Architecture); err != nil {
-			return diagnostic("analyze", program.SourceRoot, err)
-		}
-	default:
-		return diagnostic("analyze", program.SourceRoot, fmt.Errorf("no compiler backend for implementation language %q", program.Architecture.Implementation.Language))
+func checkImplementation(program *Program, registry Registry) error {
+	language := program.Architecture.Implementation.Language
+	backend, ok := registry.Lookup(language)
+	if !ok {
+		return diagnostic("analyze", program.SourceRoot, fmt.Errorf("no compiler backend registered for implementation language %q", language))
+	}
+	if err := backend.Analyze(program.SourceRoot, program.Architecture); err != nil {
+		return diagnostic("analyze", program.SourceRoot, err)
 	}
 	return nil
 }
 
 func diagnostic(phase, path string, err error) error {
-	diagnostic := Diagnostic{Phase: phase, Path: path, Severity: "error", Message: err.Error()}
+	diagnostic := Diagnostic{Code: diagnosticCode(phase), Phase: phase, Path: path, Severity: "error", Message: err.Error()}
 	var parserError *parser.Error
 	if errors.As(err, &parserError) {
 		diagnostic.Line, diagnostic.Column = parserError.Line, parserError.Column
@@ -166,4 +213,19 @@ func diagnostic(phase, path string, err error) error {
 		diagnostic.Suggestion = modelError.Suggestion
 	}
 	return &Error{Diagnostics: []Diagnostic{diagnostic}}
+}
+
+func diagnosticCode(phase string) string {
+	switch phase {
+	case "resolve":
+		return "BND100"
+	case "parse":
+		return "BND200"
+	case "validate":
+		return "BND300"
+	case "analyze":
+		return "BND400"
+	default:
+		return "BND000"
+	}
 }

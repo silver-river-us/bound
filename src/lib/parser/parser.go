@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"bound/src/model"
+	"bound/src/lib/model"
 )
 
 type Error struct {

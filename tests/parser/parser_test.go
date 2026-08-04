@@ -1,13 +1,13 @@
 package parser_test
 
 import (
-	. "bound/src/parser"
+	. "bound/src/lib/parser"
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
-	"bound/src/model"
+	"bound/src/lib/model"
 )
 
 func TestParserDiagnosticsIncludeSourceLocation(t *testing.T) {

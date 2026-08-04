@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"bound/src/model"
-	"bound/src/parser"
+	"bound/src/lib/model"
+	"bound/src/lib/parser"
 )
 
 type Position struct {

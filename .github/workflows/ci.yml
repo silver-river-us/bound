@@ -20,6 +20,19 @@ jobs:
         run: go test ./...
       - name: Vet
         run: go vet ./...
+      - name: Check Bound formatting
+        run: |
+          ./bound fmt --check examples/github-activity/contracts/daily_report.bo
+          ./bound fmt --check examples/github-activity/contracts/github_activity.bo
+          ./bound fmt --check examples/github-activity/contracts/reporting_application.bo
+          ./bound fmt --check examples/github-activity/github-activity.bo
+          ./bound fmt --check examples/greenfield/checkout.bo
+          ./bound fmt --check examples/qfile/qfile.bo
+          ./bound fmt --check examples/stitch-bank/stitch-bank.bo
+      - name: Validate design-first and external examples
+        run: |
+          ./bound check --design-only examples/greenfield/checkout.bo
+          ./bound check --design-only examples/qfile/qfile.bo
       - name: Compile the locally backed example
         run: ./bound compile examples/github-activity/github-activity.bo >/tmp/github-activity.json
       - name: Verify generated IR

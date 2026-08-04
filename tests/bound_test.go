@@ -49,7 +49,7 @@ func TestPublicCompileAPIProvidesTypedDiagnostics(t *testing.T) {
 	if !errors.As(err, &compilationError) {
 		t.Fatalf("error type = %T, want *bound.Error", err)
 	}
-	if diagnostics := compilationError.Diagnostics(); len(diagnostics) != 1 || diagnostics[0].Phase != "validate" || diagnostics[0].Line != 2 || diagnostics[0].Column != 1 {
-		t.Fatalf("diagnostics = %#v, want one validate diagnostic at 2:1", diagnostics)
+	if diagnostics := compilationError.Diagnostics(); len(diagnostics) != 1 || diagnostics[0].Code != "BND300" || diagnostics[0].Phase != "validate" || diagnostics[0].Line != 2 || diagnostics[0].Column != 1 {
+		t.Fatalf("diagnostics = %#v, want one BND300 validate diagnostic at 2:1", diagnostics)
 	}
 }

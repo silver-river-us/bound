@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"bound/src/model"
+	"bound/src/lib/model"
 )
 
 // Python validates explicit source ownership for Python repositories. Like the

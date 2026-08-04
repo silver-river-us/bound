@@ -2,6 +2,10 @@
 
 Bound is a language-neutral architecture contract language.
 
+Its own implementation follows a boundary/lib/infrastructure split. See the
+[repository architecture guide](docs/repository-architecture.md) for package
+responsibilities and dependency direction.
+
 It declares contexts, one architecture-level implementation target, exposed
 contracts, and allowed relationships. The first implementation validates the
 model and renders a Structurizr DSL workspace. An implementation target has a
@@ -192,6 +196,17 @@ source ownership, file existence, and conventional module paths without inferrin
 dynamic-language dependency graphs.
 
 ```sh
+# Scaffold a new architecture
+bound init my-architecture
+
+# Validate the model before implementation exists
+bound check --design-only my-architecture/architecture.bo
+
+# Format a specification and enforce formatting in CI
+bound fmt -w my-architecture/architecture.bo
+bound fmt --check my-architecture/architecture.bo
+
+# Compile implementation-backed architecture and create a review
 bound compile examples/github-activity/github-activity.bo > architecture.json
 bound review examples/github-activity/github-activity.bo
 ```
@@ -212,6 +227,18 @@ Bound parser. The architecture model is the compiler's intermediate
 representation and is shared by validation, dependency analysis, and rendering
 backends.
 
+`bound check` is the CI-oriented validation command. Use `--design-only` for
+architecture-first specifications whose implementation does not exist yet,
+`--watch` for local feedback while editing, and `--json` for automation. JSON
+failures contain stable diagnostic codes, phase, location, severity, message,
+and suggestion fields; a successful check emits `{\"ok\":true}`.
+
+Use `bound doctor [architecture.bo|directory]` to diagnose the architecture,
+model, implementation root, and LSP setup. Add `--json` when consuming the
+results from CI or editor tooling. `bound diff before.bo after.bo` compares two
+language-level specifications without requiring either implementation tree and
+reports context, module, and relationship changes.
+
 Bound also exposes the compiler as a Go library for tools that do not want to
 shell out to the CLI:
 
@@ -223,8 +250,29 @@ if err != nil {
 ir, err := program.JSON()
 ```
 
-The public package keeps the compiler implementation private. Its
-`SchemaVersion` constant identifies the version emitted by `Program.JSON`.
+The public package keeps the compiler implementation private. Diagnostic codes
+use stable phase ranges (`BND100` resolve, `BND200` parse, `BND300` validate,
+and `BND400` analyze); consumers should branch on `Code` rather than parsing
+human-readable messages. Its `SchemaVersion` constant identifies the version emitted by `Program.JSON`.
+
+Implementation validation uses a backend registry rather than a language switch
+in the compiler. Built-in Go, Ruby, and Python backends are registered by
+default. Integrations can provide a custom backend without modifying Bound:
+
+```go
+type TypeScriptBackend struct{}
+func (TypeScriptBackend) Language() string { return "typescript" }
+func (TypeScriptBackend) Analyze(root string, architecture *model.Architecture) error {
+    // Validate the TypeScript implementation tree.
+    return nil
+}
+backends := bound.DefaultBackendRegistry()
+backends.Register(TypeScriptBackend{})
+program, err := bound.Compile("architecture.bo", bound.Options{Backends: &backends})
+```
+
+`NewBackendRegistry` creates an empty explicit registry, while
+`DefaultBackendRegistry` starts with the built-in analyzers and can be extended.
 Within a schema version, existing IR fields retain their meaning and new fields
 may be added. Consumers should ignore unknown JSON fields; breaking changes
 increment the schema version.
@@ -252,14 +300,16 @@ executable, or install/build from source when working from a checkout.
 Run the CLI from a repository checkout with the root launcher:
 
 ```sh
+./bound init my-architecture
+./bound check --design-only my-architecture/architecture.bo
 ./bound compile examples/github-activity/github-activity.bo
 ```
 
-The launcher builds `src` into `target/go/bound`. For a manually placed
-standalone binary, build the command package directly:
+The launcher builds `src/boundary/cli` into `target/go/bound`. For a manually
+placed standalone binary, build the command package directly:
 
 ```sh
-go build -trimpath -o target/go/bound ./src
+go build -trimpath -o target/go/bound ./src/boundary/cli
 ./target/go/bound compile examples/github-activity/github-activity.bo > architecture.json
 ```
 
@@ -286,8 +336,8 @@ Use the repository launcher, following the same pattern as qfile:
 
 The launcher builds a trimmed binary at `target/go/bound` and reuses that
 location on subsequent invocations. It honors the active ASDF Go installation
-when ASDF is available. `go run ./src` remains available as a low-level
-fallback when the launcher is not suitable.
+when ASDF is available. `go run ./src/boundary/cli` remains available as a low-level fallback
+when the launcher is not suitable.
 
 Run the test suite with:
 

@@ -11,5 +11,5 @@ if command -v asdf >/dev/null 2>&1; then
 fi
 
 mkdir -p "$repo_root/target/go"
-(cd "$repo_root" && "$go_command" build -trimpath -o "$bound_binary" ./src)
+(cd "$repo_root" && "$go_command" build -trimpath -o "$bound_binary" ./src/boundary/cli)
 exec "$bound_binary" "$@"

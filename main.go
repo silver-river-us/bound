@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"bound/src/compiler"
+	"bound/src/lib/compiler"
 )
 
 // SchemaVersion is the version emitted by Program.JSON. Version 1 is stable:
@@ -14,8 +14,28 @@ import (
 // version 1. A breaking IR change increments this value.
 const SchemaVersion = 1
 
+// Backend validates one implementation language. Implementations can be
+// registered with NewBackendRegistry and injected through Options.
+type Backend = compiler.Backend
+
+// BackendRegistry resolves implementation languages to analyzers.
+type BackendRegistry = compiler.Registry
+
+// NewBackendRegistry creates an explicit backend registry.
+func NewBackendRegistry(backends ...Backend) BackendRegistry {
+	return compiler.NewRegistry(backends...)
+}
+
+// DefaultBackendRegistry returns the built-in Go, Ruby, and Python backends.
+// Call Register to extend it with application-specific backends.
+func DefaultBackendRegistry() BackendRegistry {
+	return compiler.DefaultRegistry()
+}
+
 // Options controls compilation behavior.
 type Options struct {
+	// Backends overrides the built-in implementation backend registry.
+	Backends *BackendRegistry
 	// SourceRoot overrides the implementation root declared by the architecture.
 	// When empty, it is resolved relative to the architecture file.
 	SourceRoot string
@@ -32,9 +52,10 @@ type RelatedDiagnostic struct {
 	Message string
 }
 
-// Diagnostic describes one compiler failure. Phase is one of resolve, parse,
-// validate, or analyze.
+// Diagnostic describes one compiler failure. Code is stable across releases;
+// Phase is one of resolve, parse, validate, or analyze.
 type Diagnostic struct {
+	Code       string
 	Phase      string
 	Path       string
 	Line       int
@@ -79,7 +100,7 @@ func (d Diagnostic) Error() string {
 		}
 		location += ": "
 	}
-	message := fmt.Sprintf("%s%s: %s", d.Phase, location, d.Message)
+	message := fmt.Sprintf("%s %s%s: %s", d.Code, d.Phase, location, d.Message)
 	if d.Suggestion != "" {
 		message += " (suggestion: " + d.Suggestion + ")"
 	}
@@ -110,6 +131,7 @@ func (p *Program) JSON() ([]byte, error) {
 // declared implementation source tree. The path may be relative or absolute.
 func Compile(path string, options Options) (*Program, error) {
 	compiled, err := compiler.Compile(path, compiler.Options{
+		Backends:           options.Backends,
 		SourceRoot:         options.SourceRoot,
 		SkipImplementation: options.SkipImplementation,
 	})
@@ -135,6 +157,7 @@ func diagnosticsFromCompiler(source *compiler.Error) []Diagnostic {
 			related[relatedIndex] = RelatedDiagnostic{Path: source.Path, Line: source.Line, Column: source.Column, Message: source.Message}
 		}
 		encoded[index] = Diagnostic{
+			Code:       diagnostic.Code,
 			Phase:      diagnostic.Phase,
 			Path:       diagnostic.Path,
 			Line:       diagnostic.Line,

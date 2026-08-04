@@ -5,7 +5,7 @@ import (
 	"html"
 	"strings"
 
-	"bound/src/model"
+	"bound/src/lib/model"
 )
 
 // ExportFormat identifies a review output format.

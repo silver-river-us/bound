@@ -1,7 +1,7 @@
 package model_test
 
 import (
-	. "bound/src/model"
+	. "bound/src/lib/model"
 	"testing"
 )
 

@@ -1,14 +1,44 @@
 package compiler_test
 
 import (
-	. "bound/src/compiler"
+	. "bound/src/lib/compiler"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"bound/src/model"
+	"bound/src/lib/model"
 )
+
+type recordingBackend struct {
+	called bool
+}
+
+func (backend *recordingBackend) Language() string { return "typescript" }
+func (backend *recordingBackend) Analyze(root string, architecture *model.Architecture) error {
+	backend.called = true
+	return nil
+}
+
+func TestCompileUsesInjectedBackendRegistry(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "architecture.bo")
+	const source = `architecture Example do
+	  implementation typescript "."
+	end
+	`
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	backend := &recordingBackend{}
+	registry := NewRegistry(backend)
+	if _, err := Compile(path, Options{Backends: &registry}); err != nil {
+		t.Fatalf("compile with injected backend: %v", err)
+	}
+	if !backend.called {
+		t.Fatal("injected backend was not called")
+	}
+}
 
 func TestCompileResolvesImplementationRootRelativeToArchitecture(t *testing.T) {
 	root := t.TempDir()

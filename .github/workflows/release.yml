@@ -47,7 +47,7 @@ jobs:
               binary="${binary}.exe"
             fi
             mkdir -p "${archive}"
-            GOOS="${os}" GOARCH="${arch}" go build -trimpath -o "${binary}" ./src
+            GOOS="${os}" GOARCH="${arch}" go build -trimpath -o "${binary}" ./src/boundary/cli
             printf '%s\n' "Bound ${RELEASE_TAG}" > "${archive}/VERSION"
             if [ "${extension}" = "zip" ]; then
               (cd "${archive}" && zip -q -r "../dist/${archive}.zip" .)

@@ -3,7 +3,7 @@ package framework
 import (
 	"fmt"
 
-	"bound/src/compiler"
+	"bound/src/lib/compiler"
 )
 
 // CheckArchitecture parses, validates, and checks an architecture against its

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"bound/src/lsp"
+	"bound/src/boundary/lsp"
 )
 
 func TestAnalyzeReportsBoundDiagnostics(t *testing.T) {

@@ -18,7 +18,7 @@ stable absolute path suitable for editor configuration, build it once:
 
 ```sh
 mkdir -p "$HOME/.local/bin"
-go build -trimpath -o "$HOME/.local/bin/bound-lsp" ./src/lsp-server
+go build -trimpath -o "$HOME/.local/bin/bound-lsp" ./src/boundary/lsp-server
 ```
 
 Alternatively, use the repository launcher at an absolute path, for example

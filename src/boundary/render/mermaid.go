@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"bound/src/model"
+	"bound/src/lib/model"
 )
 
 // MermaidMarkdown renders the validated architecture as a Markdown document

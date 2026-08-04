@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"bound/src/model"
+	"bound/src/lib/model"
 )
 
 type goPackage struct {

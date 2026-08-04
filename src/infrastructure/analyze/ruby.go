@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"bound/src/model"
+	"bound/src/lib/model"
 )
 
 // Ruby validates explicit source ownership for Ruby/Rails repositories.
